@@ -15,7 +15,7 @@ message = "Hello, #{name}!"
 fruits = ["apple", "mango", "banana"]
 
 # for loop
-for index in range(0, len(fruits))
+for index in range(len(fruits))
     item = fruits[index]
     println("Item: #{item}")
 end

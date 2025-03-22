@@ -41,7 +41,7 @@ invoke(person["auth"], person, "hunter42")
 
 fruits = ["apple", "mango", "banana",]
 
-for i in range(0, len(fruits))
+for i in range(len(fruits))
     item = fruits[i]
     println("Item: #{item}")
 end
