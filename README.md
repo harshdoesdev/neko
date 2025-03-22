@@ -2,9 +2,9 @@
 a smol general purpose scripting language
 
 ## todos
-[x] basic langugage setup
-[_] human-friendly error messages
-[_] neko standard library
+- [x] basic langugage setup
+- [ ] human-friendly error messages
+- [ ] neko standard library
 
 ## known issues
 ```neko
