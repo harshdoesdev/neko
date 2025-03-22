@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use thiserror::Error;
 
-use neko::tokenizer::{Keyword, Operator, Token, TokenError, TokenWithSpan, Span};
+use neko::tokenizer::{Keyword, Operator, Span, Token, TokenError, TokenWithSpan};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum AstNode {
@@ -572,7 +572,7 @@ where
             None => Err(ParseError::UnexpectedEof),
         }
     }
-    
+
     fn op_precedence(op: &Operator) -> u8 {
         match op {
             Operator::Or => 5,
@@ -588,7 +588,7 @@ where
             Operator::Not => 50,
             _ => 0,
         }
-    }    
+    }
 
     fn peek_operator(&mut self) -> Result<Option<Operator>, ParseError> {
         match self.peek()? {
@@ -674,12 +674,8 @@ where
 
     fn expect(&mut self, expected: &Token) -> Result<TokenWithSpan, ParseError> {
         match self.next_token()? {
-            Some(token_with_span) if &token_with_span.token == expected => {
-                Ok(token_with_span)
-            }
-            Some(TokenWithSpan { token, span }) => {
-                Err(ParseError::UnexpectedToken { token, span })
-            }
+            Some(token_with_span) if &token_with_span.token == expected => Ok(token_with_span),
+            Some(TokenWithSpan { token, span }) => Err(ParseError::UnexpectedToken { token, span }),
             None => Err(ParseError::UnexpectedEof),
         }
     }

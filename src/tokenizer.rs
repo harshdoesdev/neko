@@ -118,7 +118,11 @@ impl Operator {
 
     pub fn is_arithmetic(&self) -> bool {
         match self {
-            Operator::Plus | Operator::Minus | Operator::Asterisk | Operator::Slash | Operator::Percent => true,
+            Operator::Plus
+            | Operator::Minus
+            | Operator::Asterisk
+            | Operator::Slash
+            | Operator::Percent => true,
             _ => false,
         }
     }
@@ -159,7 +163,7 @@ impl<'a> Tokenizer<'a> {
         while let Some(&ch) = self.input.peek() {
             let start_line = self.line;
             let start_col = self.col;
-    
+
             match ch {
                 ' ' | '\t' => {
                     self.input.next();
@@ -222,7 +226,7 @@ impl<'a> Tokenizer<'a> {
                         token,
                         span: Span::new(start_line, start_col, end_line, end_col),
                     }));
-                }    
+                }
                 ':' => {
                     let token = self.parse_symbol_or_colon()?;
                     let end_line = self.line;
@@ -393,12 +397,12 @@ impl<'a> Tokenizer<'a> {
     fn parse_number(&mut self, has_minus: bool) -> Result<Token, TokenError> {
         let mut num_str = String::new();
         let mut has_dot = false;
-    
+
         // Add the minus sign if it was already consumed
         if has_minus {
             num_str.push('-');
         }
-    
+
         // Parse digits and optional decimal point
         while let Some(&ch) = self.input.peek() {
             if ch.is_ascii_digit() {
@@ -421,13 +425,13 @@ impl<'a> Tokenizer<'a> {
                 break;
             }
         }
-    
+
         match num_str.parse::<f64>() {
             Ok(value) => Ok(Token::Number(value)),
             Err(_) => Err(TokenError::InvalidNumber(num_str)),
         }
     }
-    
+
     fn parse_word_token(&mut self) -> Token {
         let mut ident = String::new();
         while let Some(&ch) = self.input.peek() {
@@ -538,7 +542,12 @@ impl<'a> Tokenizer<'a> {
                         let var_end_col = self.col - 1; // Before '}'
                         vars.push(TokenWithSpan {
                             token: Token::Identifier(var_buffer.clone()),
-                            span: Span::new(var_start_line, var_start_col, var_end_line, var_end_col),
+                            span: Span::new(
+                                var_start_line,
+                                var_start_col,
+                                var_end_line,
+                                var_end_col,
+                            ),
                         });
                     }
                     in_interpolation = false;
@@ -566,7 +575,7 @@ impl<'a> Tokenizer<'a> {
         };
         Some(Token::Boolean(value))
     }
-    
+
     fn skip_comment(&mut self) {
         self.input.next();
         self.col += 1;
@@ -609,13 +618,7 @@ pub fn test_negative_numbers() {
     let source = "-42 -3.14";
     let tokenizer = Tokenizer::new(source);
     let tokens: Vec<_> = tokenizer.collect::<Result<Vec<_>, _>>().unwrap();
-    
-    assert_eq!(
-        tokens[0].token,
-        Token::Number(-42.0)
-    );
-    assert_eq!(
-        tokens[1].token,
-        Token::Number(-3.14)
-    );
+
+    assert_eq!(tokens[0].token, Token::Number(-42.0));
+    assert_eq!(tokens[1].token, Token::Number(-3.14));
 }

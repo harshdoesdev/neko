@@ -52,7 +52,9 @@ pub fn run_source(source: &str) -> Result<Value, String> {
     let mut parser = Parser::new(tokens);
     let ast = parser.parse().map_err(|e| format!("Parse error: {}", e))?;
     let interpreter = Interpreter::new();
-    interpreter.interpret(&ast).map_err(|e| format!("Runtime error: {}", e))
+    interpreter
+        .interpret(&ast)
+        .map_err(|e| format!("Runtime error: {}", e))
 }
 
 fn main() {
