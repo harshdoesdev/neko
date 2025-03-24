@@ -94,23 +94,17 @@ where
     }
 
     pub fn parse(&mut self) -> Result<AstNode, ParseError> {
-        self.parse_block(vec![], false)
+        self.parse_block(vec![])
     }
 
     fn parse_block(
         &mut self,
         terminators: Vec<Keyword>,
-        consume_terminator: bool,
     ) -> Result<AstNode, ParseError> {
         let mut statements = Vec::new();
         while let Some(token) = self.peek()? {
             match token {
-                Token::Keyword(keyword) if terminators.contains(keyword) => {
-                    if consume_terminator {
-                        self.next_token()?;
-                    }
-                    break;
-                }
+                Token::Keyword(keyword) if terminators.contains(keyword) => break,
                 _ => {
                     statements.push(self.parse_statement()?);
                 }
@@ -153,7 +147,9 @@ where
 
         let iterator = self.parse_expression()?;
 
-        let body = self.parse_block(vec![Keyword::End], true)?;
+        let body = self.parse_block(vec![Keyword::End])?;
+
+        self.expect(&Token::Keyword(Keyword::End))?;
 
         Ok(AstNode::ForStmt {
             item,
@@ -163,7 +159,7 @@ where
     }
 
     fn parse_conditional_block(&mut self) -> Result<AstNode, ParseError> {
-        self.parse_block(vec![Keyword::End, Keyword::Elsif, Keyword::Else], false)
+        self.parse_block(vec![Keyword::End, Keyword::Elsif, Keyword::Else])
     }
 
     fn parse_if_statement(&mut self) -> Result<AstNode, ParseError> {
@@ -252,7 +248,9 @@ where
         };
 
         let params = self.parse_function_params()?;
-        let body = self.parse_block(vec![Keyword::End], true)?;
+        let body = self.parse_block(vec![Keyword::End])?;
+
+        self.expect(&Token::Keyword(Keyword::End))?;
 
         Ok(AstNode::FunctionDef {
             name,
@@ -263,7 +261,9 @@ where
 
     fn parse_anonymous_function(&mut self) -> Result<AstNode, ParseError> {
         let params = self.parse_function_params()?;
-        let body = self.parse_block(vec![Keyword::End], true)?;
+        let body = self.parse_block(vec![Keyword::End])?;
+
+        self.expect(&Token::Keyword(Keyword::End))?;
 
         Ok(AstNode::AnonFunctionDef {
             params,

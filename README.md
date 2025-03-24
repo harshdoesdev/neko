@@ -46,5 +46,3 @@ print("Hello, World!")
 var = nil
 print("Hello, World!")
 ```
-
-2. Parse block does not panics if no `end` keyword is found if it is the last block.
