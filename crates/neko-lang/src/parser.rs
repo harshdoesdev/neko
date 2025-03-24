@@ -1,7 +1,6 @@
+use neko_lang::tokenizer::{Keyword, Operator, Span, Token, TokenError, TokenWithSpan};
 use std::iter::Peekable;
 use thiserror::Error;
-
-use neko::tokenizer::{Keyword, Operator, Span, Token, TokenError, TokenWithSpan};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum AstNode {

@@ -1,10 +1,9 @@
+use neko_lang::parser::AstNode;
+use neko_lang::tokenizer::Operator;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
-
-use neko::parser::AstNode;
-use neko::tokenizer::Operator;
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq)]

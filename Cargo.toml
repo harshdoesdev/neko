@@ -1,7 +1,19 @@
 [package]
 name = "neko"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 
-[dependencies]
+[workspace]
+members = [
+    "crates/neko-lang",
+    "crates/neko-cli",
+]
+
+[workspace.dependencies]
+neko-lang = { path = "crates/neko-lang" }
+neko-cli = { path = "crates/neko-cli" }
 thiserror = "2.0.12"
+clap = { version = "4.5.32", features = ["derive"] }
+
+[dependencies]
+neko-cli.workspace = true

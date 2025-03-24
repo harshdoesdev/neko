@@ -1,0 +1,9 @@
+[package]
+name = "neko-cli"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+neko-lang.workspace = true
+thiserror.workspace = true
+clap.workspace = true
