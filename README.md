@@ -34,6 +34,9 @@ neko run ./hello.neko
 - [ ] neko standard library
 
 ## Known Issues
+
+1. Variable assignment does not honors newlines.
+
 ```neko
 # neko assumes it is a single statement
 var =
@@ -43,3 +46,5 @@ print("Hello, World!")
 var = nil
 print("Hello, World!")
 ```
+
+2. Parse block does not panics if no `end` keyword is found if it is the last block.
