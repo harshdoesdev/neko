@@ -5,6 +5,10 @@ use neko::tokenizer::Tokenizer;
 const DEMO_SOURCE_CODE: &str = r#"
 # NEKO EXAMPLE #0
 
+auth_error = {
+    :wrong_password => "Wrong password!"
+}
+
 fn create_person(name, age, password)
     return {
         "name" => name,
@@ -17,9 +21,9 @@ fn create_person(name, age, password)
         end,
         "auth" => fn(self, password)
             if self["password"] == password do
-                println("Access granted!")
+                return "Access granted!"
             else
-                println("Wrong password!")
+                return auth_error[:wrong_password]
             end
         end
     }
@@ -37,7 +41,9 @@ person["name"] = "Deepak Singh"
 # invoking this will print "Hello, Deepak Singh!"
 invoke(person["greet"], person)
 
-invoke(person["auth"], person, "hunter42")
+result = invoke(person["auth"], person, "hunter42")
+
+println(result)
 
 fruits = ["apple", "mango", "banana",]
 
@@ -45,6 +51,14 @@ for i in range(len(fruits))
     item = fruits[i]
     println("Item: #{item}")
 end
+
+test = {
+    "test" => "1",
+    :test => "2"
+}
+
+print(test[:test])
+print(test["test"])
 "#;
 
 pub fn run_source(source: &str) -> Result<Value, String> {

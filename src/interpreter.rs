@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
 use std::rc::Rc;
 
 use neko::parser::AstNode;
@@ -12,10 +13,32 @@ pub enum Value {
     Number(f64),
     Boolean(bool),
     String(String),
+    Symbol(String),
     List(Vec<Value>),
-    Map(HashMap<String, Value>),
+    Map(HashMap<MapKey, Value>),
     Function(Function),
     NativeFunction(NativeFunction),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum MapKey {
+    String(String),
+    Symbol(String),
+}
+
+impl fmt::Display for MapKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MapKey::String(s) => write!(f, "{}", s),
+            MapKey::Symbol(s) => write!(f, ":{}", s),
+        }
+    }
+}
+
+impl From<&str> for MapKey {
+    fn from(s: &str) -> Self {
+        MapKey::String(s.to_string())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -26,11 +49,13 @@ pub struct Function {
     closure: Option<Rc<RefCell<Environment>>>,
 }
 
+pub type NativeFn = Rc<dyn Fn(&Interpreter, Vec<Value>) -> Result<Value, RuntimeError>>;
+
 /// A function implemented in Rust that can be called from the script
 #[derive(Clone)]
 pub struct NativeFunction {
     name: String,
-    function: Rc<dyn Fn(&Interpreter, Vec<Value>) -> Result<Value, RuntimeError>>,
+    function: NativeFn,
 }
 
 impl std::fmt::Debug for NativeFunction {
@@ -55,7 +80,7 @@ impl PartialEq for NativeFunction {
 }
 
 /// Environment for storing variables and functions
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Environment {
     values: HashMap<String, Value>,
     parent: Option<Rc<RefCell<Environment>>>,
@@ -149,6 +174,7 @@ pub enum RuntimeError {
 }
 
 /// The interpreter for evaluating AST nodes
+#[derive(Default)]
 pub struct Interpreter {
     environment: Rc<RefCell<Environment>>,
 }
@@ -252,11 +278,9 @@ impl Interpreter {
             Value::Number(n) => n.to_string(),
             Value::Boolean(b) => b.to_string(),
             Value::String(s) => s.clone(),
+            Value::Symbol(s) => format!(":{}", s),
             Value::List(items) => {
-                let items_str: Vec<String> = items
-                    .iter()
-                    .map(|item| Self::stringify_value(item))
-                    .collect();
+                let items_str: Vec<String> = items.iter().map(Self::stringify_value).collect();
                 format!("[{}]", items_str.join(", "))
             }
             Value::Map(entries) => {
@@ -301,9 +325,14 @@ impl Interpreter {
                         )));
                     }
                 }
-                (Value::Map(map), Value::String(key)) => {
-                    map.get(key).cloned().unwrap_or(Value::Nil)
-                }
+                (Value::Map(map), Value::String(key)) => map
+                    .get(&MapKey::String(key.clone()))
+                    .cloned()
+                    .unwrap_or(Value::Nil),
+                (Value::Map(map), Value::Symbol(key)) => map
+                    .get(&MapKey::Symbol(key.clone()))
+                    .cloned()
+                    .unwrap_or(Value::Nil),
                 _ => {
                     return Err(RuntimeError::TypeError(
                         "Invalid subscript operation".to_string(),
@@ -345,7 +374,10 @@ impl Interpreter {
                     }
                 }
                 (Value::Map(map), Value::String(key)) => {
-                    map.insert(key.clone(), new_value);
+                    map.insert(MapKey::String(key.clone()), new_value);
+                }
+                (Value::Map(map), Value::Symbol(key)) => {
+                    map.insert(MapKey::Symbol(key.clone()), new_value);
                 }
                 _ => {
                     return Err(RuntimeError::TypeError(
@@ -377,7 +409,8 @@ impl Interpreter {
                 }
                 Value::Map(map) => {
                     let key = match index {
-                        Value::String(k) => k,
+                        Value::String(k) => MapKey::String(k),
+                        Value::Symbol(k) => MapKey::Symbol(k),
                         _ => {
                             return Err(RuntimeError::TypeError(
                                 "Map key must be a string".to_string(),
@@ -418,11 +451,11 @@ impl Interpreter {
                 let mut map = HashMap::new();
                 for (key, value) in pairs {
                     let key_value = self.evaluate(key, env)?;
-                    // Only string keys are supported for now
                     let key_string = match key_value {
-                        Value::String(s) => s,
-                        Value::Function(f) => f.name,
-                        Value::NativeFunction(f) => f.name,
+                        Value::String(s) => MapKey::String(s),
+                        Value::Symbol(s) => MapKey::Symbol(s),
+                        Value::Function(f) => MapKey::Symbol(f.name),
+                        Value::NativeFunction(f) => MapKey::String(f.name),
                         _ => {
                             return Err(RuntimeError::TypeError(
                                 "Map keys must be strings".to_string(),
@@ -440,10 +473,7 @@ impl Interpreter {
                 None => Err(RuntimeError::UndefinedVariable(name.clone())),
             },
 
-            AstNode::Symbol(name) => {
-                // Symbols are treated as string literals with special syntax
-                Ok(Value::String(name.clone()))
-            }
+            AstNode::Symbol(name) => Ok(Value::Symbol(name.clone())),
 
             AstNode::BinaryExpr { left, op, right } => {
                 let left_val = self.evaluate(left, env)?;
@@ -707,7 +737,7 @@ impl Interpreter {
             Value::String(s) => !s.is_empty(),
             Value::List(items) => !items.is_empty(),
             Value::Map(entries) => !entries.is_empty(),
-            Value::Function(_) | Value::NativeFunction(_) => true,
+            Value::Function(_) | Value::NativeFunction(_) | Value::Symbol(_) => true,
         }
     }
 

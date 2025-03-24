@@ -117,14 +117,14 @@ impl Operator {
     }
 
     pub fn is_arithmetic(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Operator::Plus
-            | Operator::Minus
-            | Operator::Asterisk
-            | Operator::Slash
-            | Operator::Percent => true,
-            _ => false,
-        }
+                | Operator::Minus
+                | Operator::Asterisk
+                | Operator::Slash
+                | Operator::Percent
+        )
     }
 }
 
@@ -343,10 +343,9 @@ impl<'a> Tokenizer<'a> {
                 '}' => return Ok(self.consume_operator(Operator::BraceClose)),
                 '[' => return Ok(self.consume_operator(Operator::LeftBracket)),
                 ']' => return Ok(self.consume_operator(Operator::RightBracket)),
-                _ => {
-                    let invalid_char = self.input.next().unwrap();
+                c => {
                     self.col += 1;
-                    return Err(TokenError::InvalidCharacter(invalid_char));
+                    return Err(TokenError::InvalidCharacter(c));
                 }
             }
         }
@@ -601,7 +600,7 @@ impl<'a> Tokenizer<'a> {
     }
 }
 
-impl<'a> Iterator for Tokenizer<'a> {
+impl Iterator for Tokenizer<'_> {
     type Item = Result<TokenWithSpan, TokenError>;
 
     fn next(&mut self) -> Option<Self::Item> {

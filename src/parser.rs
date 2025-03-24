@@ -128,7 +128,8 @@ where
             Some(Token::Keyword(Keyword::For)) => self.parse_for_statement(),
             Some(Token::Identifier(_) | Token::Symbol(_)) => self.parse_identifier_statement(),
             Some(_) => {
-                let TokenWithSpan { token, span } = self.next_token()?.unwrap();
+                let TokenWithSpan { token, span } =
+                    self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
                 Err(ParseError::UnexpectedToken { token, span })
             }
             None => Err(ParseError::UnexpectedEof),
@@ -199,7 +200,8 @@ where
                     break;
                 }
                 Some(_) => {
-                    let TokenWithSpan { token, span } = self.next_token()?.unwrap();
+                    let TokenWithSpan { token, span } =
+                        self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
                     return Err(ParseError::UnexpectedToken { token, span });
                 }
                 None => return Err(ParseError::UnexpectedEof),
@@ -220,8 +222,12 @@ where
 
         match self.peek()? {
             Some(Token::Keyword(Keyword::End)) => Ok(AstNode::Return(Box::new(value))),
+            Some(Token::Keyword(Keyword::Else) | Token::Keyword(Keyword::Elsif)) => {
+                Ok(AstNode::Return(Box::new(value)))
+            }
             Some(_) => {
-                let TokenWithSpan { token, span } = self.next_token()?.unwrap();
+                let TokenWithSpan { token, span } =
+                    self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
                 Err(ParseError::UnexpectedToken { token, span })
             }
             None => Err(ParseError::UnexpectedEof),
@@ -340,8 +346,14 @@ where
                 let args = self.parse_args()?;
                 Ok(AstNode::FunctionCall { name, args })
             }
-            Some(token) if !matches!(token, Token::Keyword(Keyword::End)) => {
-                let TokenWithSpan { token, span } = self.next_token()?.unwrap();
+            Some(token)
+                if !matches!(
+                    token,
+                    Token::Keyword(Keyword::End) | Token::Keyword(Keyword::Else)
+                ) =>
+            {
+                let TokenWithSpan { token, span } =
+                    self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
                 Err(ParseError::UnexpectedToken { token, span })
             }
             _ => Ok(if is_symbol {
@@ -409,7 +421,8 @@ where
                     break;
                 }
                 Some(_) => {
-                    let TokenWithSpan { token, span } = self.next_token()?.unwrap();
+                    let TokenWithSpan { token, span } =
+                        self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
                     return Err(ParseError::UnexpectedToken { token, span });
                 }
                 None => return Err(ParseError::UnexpectedEof),
@@ -458,7 +471,8 @@ where
                     break;
                 }
                 Some(_) => {
-                    let TokenWithSpan { token, span } = self.next_token()?.unwrap();
+                    let TokenWithSpan { token, span } =
+                        self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
                     return Err(ParseError::UnexpectedToken { token, span });
                 }
                 None => return Err(ParseError::UnexpectedEof),
@@ -478,7 +492,8 @@ where
                     self.next_token()?;
                 }
                 Some(_) => {
-                    let TokenWithSpan { token, span } = self.next_token()?.unwrap();
+                    let TokenWithSpan { token, span } =
+                        self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
                     return Err(ParseError::UnexpectedToken { token, span });
                 }
                 None => return Err(ParseError::UnexpectedEof),
@@ -636,7 +651,8 @@ where
                     return Ok(args);
                 }
                 Some(_) => {
-                    let TokenWithSpan { token, span } = self.next_token()?.unwrap();
+                    let TokenWithSpan { token, span } =
+                        self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
                     return Err(ParseError::UnexpectedToken { token, span });
                 }
                 None => return Err(ParseError::UnexpectedEof),
@@ -645,12 +661,10 @@ where
     }
 
     fn peek(&mut self) -> Result<Option<&Token>, ParseError> {
-        loop {
-            match self.tokens.peek() {
-                Some(Ok(TokenWithSpan { token, .. })) => return Ok(Some(token)),
-                Some(Err(err)) => return Err(ParseError::TokenizationError(err.clone())),
-                None => return Ok(None),
-            }
+        match self.tokens.peek() {
+            Some(Ok(TokenWithSpan { token, .. })) => Ok(Some(token)),
+            Some(Err(err)) => Err(ParseError::TokenizationError(err.clone())),
+            None => Ok(None),
         }
     }
 
