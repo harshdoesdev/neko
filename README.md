@@ -1,57 +1,39 @@
-# neko
+# Project neko
 a smol general purpose scripting language
 
-## example
+## Usage
+
+1. Clone this project, `cd` to it and install the `neko` command via `cargo install`
+
+2. Create a file with a `.neko` extension
 
 ```neko
-# variables
-name = "supercat1"
-num = 1
-
-# formatted string
-message = "Hello, #{name}!"
-
-# list
-fruits = ["apple", "mango", "banana"]
-
-# for loop
-for index in range(len(fruits))
-    item = fruits[index]
-    println("Item: #{item}")
-end
-
-# map
-person = {
-    "name" => "Harsh Singh",
-    "company" => "Shuru Technologies",
-    "role" => "Product Engineer",
-    "print_about" => fn(self)
-        name = self["name"]
-        company = self["company"]
-        role = self["role"]
-        println("#{name} is a #{role} at #{company}")
-    end
-}
-
-# function
-
-fn greet(person)
-    name = person["name"]
+fn greet(name)
     println("Hello, #{name}!")
 end
 
-greet(person)
+names = ["momo", "luna", "niko", "suki", "taro"]
 
-invoke(person["print_about"], person)
+for i in range(len(names))
+    name = names[i]
+    greet(name)
+end
 ```
 
-## todos
+3. Run the script with the following command
+
+```neko
+neko run ./hello.neko
+```
+
+## Todos
 - [x] basic langugage setup
 - [x] basic example
+- [x] basic cli
 - [ ] human-friendly error messages
 - [ ] neko standard library
 
-## known issues
+## Known Issues
 ```neko
 # neko assumes it is a single statement
 var =
