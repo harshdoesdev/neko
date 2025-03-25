@@ -260,7 +260,7 @@ impl<'a> Tokenizer<'a> {
             }
             '#' => {
                 self.skip_comment();
-                Ok(None)
+                self.next_token()
             }
             '+' => Ok(self.consume_operator(Operator::Plus)),
             '*' => Ok(self.consume_operator(Operator::Asterisk)),

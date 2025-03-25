@@ -1,9 +1,15 @@
-fn greet(name)
-    println("Hello, #{name}!")
+fn button_component(state)
+    return "<button>#{state}</button>"
 end
 
-names = ["momo", "luna", "niko", "suki", "taro"]
-
-for name in names
-    greet(name)
+fn hx_render(component, state)
+    println(invoke(component, state))
 end
+
+fn hx_update(component, new_state)
+    println(invoke(component, new_state))
+end
+
+# Example Usage
+hx_render(button_component, "Click me!")  # Prints: <button>Click me!</button>
+hx_update(button_component, "Clicked!")   # Prints: <button>Clicked!</button>
