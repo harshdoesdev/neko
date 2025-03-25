@@ -97,10 +97,7 @@ where
         self.parse_block(vec![])
     }
 
-    fn parse_block(
-        &mut self,
-        terminators: Vec<Keyword>,
-    ) -> Result<AstNode, ParseError> {
+    fn parse_block(&mut self, terminators: Vec<Keyword>) -> Result<AstNode, ParseError> {
         let mut statements = Vec::new();
         while let Some(token) = self.peek()? {
             match token {

@@ -675,21 +675,13 @@ impl Interpreter {
 
             AstNode::InterpolatedString { parts, vars } => {
                 let mut result = String::new();
-
-                if !parts.is_empty() {
-                    result.push_str(&parts[0]);
-                }
-
-                // Iterate over vars and append corresponding parts if they exist
-                for i in 0..vars.len() {
-                    let var_value = self.evaluate(&vars[i], env)?;
-                    result.push_str(&Self::stringify_value(&var_value));
-                    // Append the next part if it exists (i + 1 < parts.len())
-                    if i + 1 < parts.len() {
-                        result.push_str(&parts[i + 1]);
+                for (i, part) in parts.iter().enumerate() {
+                    result.push_str(part);
+                    if i < vars.len() {
+                        let var_value = self.evaluate(&vars[i], env)?;
+                        result.push_str(&Self::stringify_value(&var_value));
                     }
                 }
-
                 Ok(Value::String(result))
             }
         }

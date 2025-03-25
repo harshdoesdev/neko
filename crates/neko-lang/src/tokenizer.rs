@@ -142,6 +142,10 @@ pub enum TokenError {
     InvalidOperator,
     #[error("Invalid symbol: {0}")]
     InvalidSymbol(String),
+    #[error("Unterminated variable interpolation")]
+    UnterminatedInterpolation,
+    #[error("Empty interpolation")]
+    EmptyInterpolation,
 }
 
 pub struct Tokenizer<'a> {
@@ -460,73 +464,50 @@ impl<'a> Tokenizer<'a> {
         let mut vars = Vec::new();
         let mut in_interpolation = false;
         let mut var_buffer = String::new();
-
+    
         self.input.next(); // Consume the opening quote
         self.col += 1;
-
+    
         while let Some(ch) = self.input.next() {
             self.col += 1;
             match ch {
-                '\r' => {
-                    if self.input.peek() == Some(&'\n') {
-                        self.input.next();
-                        self.col = 0;
-                    }
-                    self.line += 1;
-                    self.col = 0;
-                    current_part.push('\n');
-                }
-                '\n' => {
-                    self.line += 1;
-                    self.col = 0;
-                    current_part.push('\n');
-                }
                 '"' => {
+                    if in_interpolation {
+                        return Err(TokenError::UnterminatedInterpolation);
+                    }
                     if !current_part.is_empty() {
                         parts.push(current_part);
                     }
-                    return Ok(if vars.is_empty() {
+                    return Ok(if vars.is_empty() && parts.len() == 1 {
                         Token::StringLiteral(parts[0].clone())
                     } else {
                         Token::InterpolatedString { parts, vars }
                     });
                 }
                 '\\' => {
-                    if let Some(escaped) = self.input.next() {
+                    if in_interpolation {
+                        var_buffer.push('\\');
+                    } else if let Some(escaped) = self.input.next() {
                         self.col += 1;
-                        if escaped == '\r' {
-                            if self.input.peek() == Some(&'\n') {
-                                self.input.next();
-                                self.col = 0;
-                            }
-                            self.line += 1;
-                            self.col = 0;
-                            current_part.push('\n');
-                        } else if escaped == '\n' {
-                            self.line += 1;
-                            self.col = 0;
-                            current_part.push('\n');
-                        } else {
-                            current_part.push(match escaped {
-                                '"' => '"',
-                                '#' => '#',
-                                'n' => '\n',
-                                'r' => '\r',
-                                't' => '\t',
-                                '\\' => '\\',
-                                _ => return Err(TokenError::InvalidEscapeSequence(escaped)),
-                            });
-                        }
+                        current_part.push(match escaped {
+                            '"' => '"',
+                            '#' => '#',
+                            'n' => '\n',
+                            'r' => '\r',
+                            't' => '\t',
+                            '\\' => '\\',
+                            _ => return Err(TokenError::InvalidEscapeSequence(escaped)),
+                        });
                     }
                 }
                 '#' => {
-                    if let Some(&'{') = self.input.peek() {
+                    if in_interpolation {
+                        var_buffer.push('#');
+                    } else if self.input.peek() == Some(&'{') {
                         self.input.next(); // Consume '{'
                         self.col += 1;
-                        if !current_part.is_empty() {
-                            parts.push(current_part);
-                            current_part = String::new();
-                        }
+                        parts.push(current_part);
+                        current_part = String::new();
                         in_interpolation = true;
                         var_buffer.clear();
                     } else {
@@ -534,24 +515,34 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
                 '}' if in_interpolation => {
-                    if !var_buffer.is_empty() {
-                        let var_start_line = self.line;
-                        let var_start_col = self.col - var_buffer.len() - 1; // Adjust for '}' and buffer
-                        let var_end_line = self.line;
-                        let var_end_col = self.col - 1; // Before '}'
-                        vars.push(TokenWithSpan {
-                            token: Token::Identifier(var_buffer.clone()),
-                            span: Span::new(
-                                var_start_line,
-                                var_start_col,
-                                var_end_line,
-                                var_end_col,
-                            ),
-                        });
+                    if var_buffer.is_empty() {
+                        return Err(TokenError::EmptyInterpolation);
                     }
+                    let var_start_line = self.line;
+                    let var_start_col = self.col - var_buffer.len() - 1;
+                    let var_end_line = self.line;
+                    let var_end_col = self.col - 1;
+                    vars.push(TokenWithSpan {
+                        token: Token::Identifier(var_buffer.clone()),
+                        span: Span::new(
+                            var_start_line,
+                            var_start_col,
+                            var_end_line,
+                            var_end_col,
+                        ),
+                    });
                     in_interpolation = false;
                 }
-                _ => {
+                '\n' => {
+                    self.line += 1;
+                    self.col = 0;
+                    if in_interpolation {
+                        var_buffer.push('\n');
+                    } else {
+                        current_part.push('\n');
+                    }
+                }
+                ch => {
                     if in_interpolation {
                         if ch.is_alphanumeric() || ch == '_' {
                             var_buffer.push(ch);
@@ -564,10 +555,10 @@ impl<'a> Tokenizer<'a> {
                 }
             }
         }
-
+    
         Err(TokenError::UnterminatedString)
     }
-
+    
     fn parse_bool(input: &str) -> Option<Token> {
         let Ok(value) = input.parse::<bool>() else {
             return None;
