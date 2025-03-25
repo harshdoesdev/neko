@@ -14,8 +14,7 @@ end
 
 names = ["momo", "luna", "niko", "suki", "taro"]
 
-for i in range(len(names))
-    name = names[i]
+for name in names
     greet(name)
 end
 ```
