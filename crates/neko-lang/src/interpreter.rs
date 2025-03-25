@@ -19,6 +19,44 @@ pub enum Value {
     NativeFunction(NativeFunction),
 }
 
+impl Value {
+    pub fn type_of(&self) -> &'static str {
+        match self {
+            Value::Nil => "nil",
+            Value::Number(_) => "number",
+            Value::Boolean(_) => "boolean",
+            Value::String(_) => "string",
+            Value::Symbol(_) => "symbol",
+            Value::List(_) => "list",
+            Value::Map(_) => "map",
+            Value::Function(_) => "function",
+            Value::NativeFunction(_) => "native_function",
+        }
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Nil => write!(f, "nil"),
+            Value::Number(n) => write!(f, "{}", n),
+            Value::Boolean(b) => write!(f, "{}", b),
+            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Symbol(s) => write!(f, ":{}", s),
+            Value::List(list) => {
+                let items: Vec<String> = list.iter().map(|v| v.to_string()).collect();
+                write!(f, "[{}]", items.join(" "))
+            }
+            Value::Map(map) => {
+                let pairs: Vec<String> = map.iter().map(|(k, v)| format!("{} {}", k, v)).collect();
+                write!(f, "{{{}}}", pairs.join(" "))
+            }
+            Value::Function(func) => write!(f, "<function {}>", func.name),
+            Value::NativeFunction(native) => write!(f, "<native function {}>", native.name),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MapKey {
     String(String),
@@ -223,9 +261,10 @@ impl Interpreter {
             // Determine the length based on its type
             match value {
                 Value::List(list) => Ok(Value::Number(list.len() as f64)),
-                v => Err(RuntimeError::TypeError(
-                    format!("cannot determine length of type {:#?}", v), // TODO: impl display for types
-                )),
+                v => Err(RuntimeError::TypeError(format!(
+                    "cannot determine length of type {:#?}",
+                    v.type_of()
+                ))),
             }
         });
 
@@ -267,6 +306,18 @@ impl Interpreter {
                     "First argument to invoke must be a function".to_string(),
                 )),
             }
+        });
+
+        env.register_native_fn("typeof", |_, args| {
+            if args.is_empty() {
+                return Err(RuntimeError::FunctionCallError(
+                    "typeof requires exactly one argument".to_string(),
+                ));
+            }
+
+            let value = &args[0];
+
+            Ok(Value::String(value.type_of().to_string()))
         });
     }
 

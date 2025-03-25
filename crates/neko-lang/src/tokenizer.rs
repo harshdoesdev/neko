@@ -464,10 +464,10 @@ impl<'a> Tokenizer<'a> {
         let mut vars = Vec::new();
         let mut in_interpolation = false;
         let mut var_buffer = String::new();
-    
+
         self.input.next(); // Consume the opening quote
         self.col += 1;
-    
+
         while let Some(ch) = self.input.next() {
             self.col += 1;
             match ch {
@@ -524,12 +524,7 @@ impl<'a> Tokenizer<'a> {
                     let var_end_col = self.col - 1;
                     vars.push(TokenWithSpan {
                         token: Token::Identifier(var_buffer.clone()),
-                        span: Span::new(
-                            var_start_line,
-                            var_start_col,
-                            var_end_line,
-                            var_end_col,
-                        ),
+                        span: Span::new(var_start_line, var_start_col, var_end_line, var_end_col),
                     });
                     in_interpolation = false;
                 }
@@ -555,10 +550,10 @@ impl<'a> Tokenizer<'a> {
                 }
             }
         }
-    
+
         Err(TokenError::UnterminatedString)
     }
-    
+
     fn parse_bool(input: &str) -> Option<Token> {
         let Ok(value) = input.parse::<bool>() else {
             return None;
