@@ -74,6 +74,8 @@ pub enum ParseError {
     UnexpectedEof,
     #[error("Tokenization error: {0:?}")]
     TokenizationError(TokenError),
+    #[error("Assignment operator must be on the same line as the identifier at {span:?}")]
+    AssignmentNewline { span: Span },
 }
 
 pub struct Parser<I>
@@ -284,15 +286,15 @@ where
     }
 
     fn parse_identifier_statement(&mut self) -> Result<AstNode, ParseError> {
-        let (name, is_symbol) = match self.next_token()? {
+        let (name, is_symbol, ident_span) = match self.next_token()? {
             Some(TokenWithSpan {
                 token: Token::Identifier(name),
-                ..
-            }) => (name, false),
+                span,
+            }) => (name, false, span),
             Some(TokenWithSpan {
                 token: Token::Symbol(name),
-                ..
-            }) => (name, true),
+                span,
+            }) => (name, true, span),
             _ => unreachable!("Checked in parse_statement"),
         };
 
@@ -330,7 +332,19 @@ where
                 }
             }
             Some(Token::Operator(Operator::Equal)) => {
-                self.next_token()?;
+                let equal_token = self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
+                if equal_token.span.start_line != ident_span.start_line {
+                    return Err(ParseError::UnexpectedToken { token: equal_token.token, span: equal_token.span });
+                }
+                let next_token_span = match self.peek_with_span()? {
+                    Some(TokenWithSpan { span, .. }) => *span,
+                    None => return Err(ParseError::UnexpectedEof),
+                };
+                if next_token_span.start_line != ident_span.start_line {
+                    return Err(ParseError::AssignmentNewline {
+                        span: next_token_span,
+                    });
+                }
                 let value = self.parse_expression()?;
                 Ok(AstNode::Assignment {
                     name,
@@ -659,6 +673,14 @@ where
     fn peek(&mut self) -> Result<Option<&Token>, ParseError> {
         match self.tokens.peek() {
             Some(Ok(TokenWithSpan { token, .. })) => Ok(Some(token)),
+            Some(Err(err)) => Err(ParseError::TokenizationError(err.clone())),
+            None => Ok(None),
+        }
+    }
+
+    fn peek_with_span(&mut self) -> Result<Option<&TokenWithSpan>, ParseError> {
+        match self.tokens.peek() {
+            Some(Ok(token_with_span)) => Ok(Some(token_with_span)),
             Some(Err(err)) => Err(ParseError::TokenizationError(err.clone())),
             None => Ok(None),
         }

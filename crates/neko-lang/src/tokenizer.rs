@@ -164,10 +164,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     pub fn next_token(&mut self) -> Result<Option<TokenWithSpan>, TokenError> {
-        while let Some(&ch) = self.input.peek() {
-            let start_line = self.line;
-            let start_col = self.col;
-
+        while let Some(ch) = self.input.peek() {
             match ch {
                 ' ' | '\t' => {
                     self.input.next();
@@ -188,172 +185,182 @@ impl<'a> Tokenizer<'a> {
                     self.line += 1;
                     self.col = 0;
                 }
-                '0'..='9' => {
-                    let token = self.parse_number(false)?; // No leading minus
-                    let end_line = self.line;
-                    let end_col = self.col;
-                    return Ok(Some(TokenWithSpan {
-                        token,
-                        span: Span::new(start_line, start_col, end_line, end_col),
-                    }));
-                }
-                '-' => {
-                    self.input.next(); // Consume the '-'
-                    self.col += 1;
-                    if let Some(&next_ch) = self.input.peek() {
-                        if next_ch.is_ascii_digit() {
-                            let token = self.parse_number(true)?; // Has leading minus
-                            let end_line = self.line;
-                            let end_col = self.col;
-                            return Ok(Some(TokenWithSpan {
-                                token,
-                                span: Span::new(start_line, start_col, end_line, end_col),
-                            }));
-                        } else {
-                            return Ok(Some(TokenWithSpan {
-                                token: Token::Operator(Operator::Minus),
-                                span: Span::new(start_line, start_col, self.line, self.col),
-                            }));
-                        }
-                    } else {
-                        return Ok(Some(TokenWithSpan {
-                            token: Token::Operator(Operator::Minus),
-                            span: Span::new(start_line, start_col, self.line, self.col),
-                        }));
-                    }
-                }
-                'a'..='z' | 'A'..='Z' | '_' => {
-                    let token = self.parse_word_token();
-                    let end_line = self.line;
-                    let end_col = self.col;
-                    return Ok(Some(TokenWithSpan {
-                        token,
-                        span: Span::new(start_line, start_col, end_line, end_col),
-                    }));
-                }
-                ':' => {
-                    let token = self.parse_symbol_or_colon()?;
-                    let end_line = self.line;
-                    let end_col = self.col;
-                    return Ok(Some(TokenWithSpan {
-                        token,
-                        span: Span::new(start_line, start_col, end_line, end_col),
-                    }));
-                }
-                '"' => {
-                    let token = self.parse_string()?;
-                    let end_line = self.line;
-                    let end_col = self.col;
-                    return Ok(Some(TokenWithSpan {
-                        token,
-                        span: Span::new(start_line, start_col, end_line, end_col),
-                    }));
-                }
-                '#' => {
-                    self.skip_comment();
-                    continue;
-                }
-                '+' => return Ok(self.consume_operator(Operator::Plus)),
-                '*' => return Ok(self.consume_operator(Operator::Asterisk)),
-                '/' => return Ok(self.consume_operator(Operator::Slash)),
-                '%' => return Ok(self.consume_operator(Operator::Percent)),
-                '=' => {
-                    self.input.next();
-                    self.col += 1;
-                    let mut end_line = self.line;
-                    let mut end_col = self.col;
-                    if self.input.peek() == Some(&'=') {
-                        self.input.next();
-                        self.col += 1;
-                        end_line = self.line;
-                        end_col = self.col;
-                        return Ok(Some(TokenWithSpan {
-                            token: Token::Operator(Operator::DoubleEqual),
-                            span: Span::new(start_line, start_col, end_line, end_col),
-                        }));
-                    }
-                    if self.input.peek() == Some(&'>') {
-                        self.input.next();
-                        self.col += 1;
-                        end_line = self.line;
-                        end_col = self.col;
-                        return Ok(Some(TokenWithSpan {
-                            token: Token::Operator(Operator::Arrow),
-                            span: Span::new(start_line, start_col, end_line, end_col),
-                        }));
-                    }
-                    return Ok(Some(TokenWithSpan {
-                        token: Token::Operator(Operator::Equal),
-                        span: Span::new(start_line, start_col, end_line, end_col),
-                    }));
-                }
-                '!' => {
-                    self.input.next();
-                    self.col += 1;
-                    if self.input.peek() == Some(&'=') {
-                        self.input.next();
-                        self.col += 1;
-                        return Ok(Some(TokenWithSpan {
-                            token: Token::Operator(Operator::NotEqual),
-                            span: Span::new(start_line, start_col, self.line, self.col),
-                        }));
-                    }
-                    return Err(TokenError::InvalidOperator);
-                }
-                '>' => {
-                    self.input.next();
-                    self.col += 1;
-                    let mut end_line = self.line;
-                    let mut end_col = self.col;
-                    if self.input.peek() == Some(&'=') {
-                        self.input.next();
-                        self.col += 1;
-                        end_line = self.line;
-                        end_col = self.col;
-                        return Ok(Some(TokenWithSpan {
-                            token: Token::Operator(Operator::GreaterEqual),
-                            span: Span::new(start_line, start_col, end_line, end_col),
-                        }));
-                    }
-                    return Ok(Some(TokenWithSpan {
-                        token: Token::Operator(Operator::Greater),
-                        span: Span::new(start_line, start_col, end_line, end_col),
-                    }));
-                }
-                '<' => {
-                    self.input.next();
-                    self.col += 1;
-                    let mut end_line = self.line;
-                    let mut end_col = self.col;
-                    if self.input.peek() == Some(&'=') {
-                        self.input.next();
-                        self.col += 1;
-                        end_line = self.line;
-                        end_col = self.col;
-                        return Ok(Some(TokenWithSpan {
-                            token: Token::Operator(Operator::LessEqual),
-                            span: Span::new(start_line, start_col, end_line, end_col),
-                        }));
-                    }
-                    return Ok(Some(TokenWithSpan {
-                        token: Token::Operator(Operator::Less),
-                        span: Span::new(start_line, start_col, end_line, end_col),
-                    }));
-                }
-                ',' => return Ok(self.consume_operator(Operator::Comma)),
-                '(' => return Ok(self.consume_operator(Operator::LeftParen)),
-                ')' => return Ok(self.consume_operator(Operator::RightParen)),
-                '{' => return Ok(self.consume_operator(Operator::BraceOpen)),
-                '}' => return Ok(self.consume_operator(Operator::BraceClose)),
-                '[' => return Ok(self.consume_operator(Operator::LeftBracket)),
-                ']' => return Ok(self.consume_operator(Operator::RightBracket)),
-                c => {
-                    self.col += 1;
-                    return Err(TokenError::InvalidCharacter(c));
-                }
+                _ => break,
             }
         }
-        Ok(None)
+
+        let Some(&ch) = self.input.peek() else {
+            return Ok(None);
+        };
+
+        let start_line = self.line;
+        let start_col = self.col;
+
+        match ch {
+            '0'..='9' => {
+                let token = self.parse_number(false)?; // No leading minus
+                let end_line = self.line;
+                let end_col = self.col;
+                Ok(Some(TokenWithSpan {
+                    token,
+                    span: Span::new(start_line, start_col, end_line, end_col),
+                }))
+            }
+            '-' => {
+                self.input.next(); // Consume the '-'
+                self.col += 1;
+                if let Some(&next_ch) = self.input.peek() {
+                    if next_ch.is_ascii_digit() {
+                        let token = self.parse_number(true)?; // Has leading minus
+                        let end_line = self.line;
+                        let end_col = self.col;
+                        Ok(Some(TokenWithSpan {
+                            token,
+                            span: Span::new(start_line, start_col, end_line, end_col),
+                        }))
+                    } else {
+                        Ok(Some(TokenWithSpan {
+                            token: Token::Operator(Operator::Minus),
+                            span: Span::new(start_line, start_col, self.line, self.col),
+                        }))
+                    }
+                } else {
+                    Ok(Some(TokenWithSpan {
+                        token: Token::Operator(Operator::Minus),
+                        span: Span::new(start_line, start_col, self.line, self.col),
+                    }))
+                }
+            }
+            'a'..='z' | 'A'..='Z' | '_' => {
+                let token = self.parse_word_token();
+                let end_line = self.line;
+                let end_col = self.col;
+                Ok(Some(TokenWithSpan {
+                    token,
+                    span: Span::new(start_line, start_col, end_line, end_col),
+                }))
+            }
+            ':' => {
+                let token = self.parse_symbol_or_colon()?;
+                let end_line = self.line;
+                let end_col = self.col;
+                Ok(Some(TokenWithSpan {
+                    token,
+                    span: Span::new(start_line, start_col, end_line, end_col),
+                }))
+            }
+            '"' => {
+                let token = self.parse_string()?;
+                let end_line = self.line;
+                let end_col = self.col;
+                Ok(Some(TokenWithSpan {
+                    token,
+                    span: Span::new(start_line, start_col, end_line, end_col),
+                }))
+            }
+            '#' => {
+                self.skip_comment();
+                Ok(None)
+            }
+            '+' => Ok(self.consume_operator(Operator::Plus)),
+            '*' => Ok(self.consume_operator(Operator::Asterisk)),
+            '/' => Ok(self.consume_operator(Operator::Slash)),
+            '%' => Ok(self.consume_operator(Operator::Percent)),
+            '=' => {
+                self.input.next();
+                self.col += 1;
+                let mut end_line = self.line;
+                let mut end_col = self.col;
+                if self.input.peek() == Some(&'=') {
+                    self.input.next();
+                    self.col += 1;
+                    end_line = self.line;
+                    end_col = self.col;
+                    return Ok(Some(TokenWithSpan {
+                        token: Token::Operator(Operator::DoubleEqual),
+                        span: Span::new(start_line, start_col, end_line, end_col),
+                    }));
+                }
+                if self.input.peek() == Some(&'>') {
+                    self.input.next();
+                    self.col += 1;
+                    end_line = self.line;
+                    end_col = self.col;
+                    return Ok(Some(TokenWithSpan {
+                        token: Token::Operator(Operator::Arrow),
+                        span: Span::new(start_line, start_col, end_line, end_col),
+                    }));
+                }
+                Ok(Some(TokenWithSpan {
+                    token: Token::Operator(Operator::Equal),
+                    span: Span::new(start_line, start_col, end_line, end_col),
+                }))
+            }
+            '!' => {
+                self.input.next();
+                self.col += 1;
+                if self.input.peek() == Some(&'=') {
+                    self.input.next();
+                    self.col += 1;
+                    return Ok(Some(TokenWithSpan {
+                        token: Token::Operator(Operator::NotEqual),
+                        span: Span::new(start_line, start_col, self.line, self.col),
+                    }));
+                }
+                Err(TokenError::InvalidOperator)
+            }
+            '>' => {
+                self.input.next();
+                self.col += 1;
+                let mut end_line = self.line;
+                let mut end_col = self.col;
+                if self.input.peek() == Some(&'=') {
+                    self.input.next();
+                    self.col += 1;
+                    end_line = self.line;
+                    end_col = self.col;
+                    return Ok(Some(TokenWithSpan {
+                        token: Token::Operator(Operator::GreaterEqual),
+                        span: Span::new(start_line, start_col, end_line, end_col),
+                    }));
+                }
+                Ok(Some(TokenWithSpan {
+                    token: Token::Operator(Operator::Greater),
+                    span: Span::new(start_line, start_col, end_line, end_col),
+                }))
+            }
+            '<' => {
+                self.input.next();
+                self.col += 1;
+                let mut end_line = self.line;
+                let mut end_col = self.col;
+                if self.input.peek() == Some(&'=') {
+                    self.input.next();
+                    self.col += 1;
+                    end_line = self.line;
+                    end_col = self.col;
+                    return Ok(Some(TokenWithSpan {
+                        token: Token::Operator(Operator::LessEqual),
+                        span: Span::new(start_line, start_col, end_line, end_col),
+                    }));
+                }
+                Ok(Some(TokenWithSpan {
+                    token: Token::Operator(Operator::Less),
+                    span: Span::new(start_line, start_col, end_line, end_col),
+                }))
+            }
+            ',' => Ok(self.consume_operator(Operator::Comma)),
+            '(' => Ok(self.consume_operator(Operator::LeftParen)),
+            ')' => Ok(self.consume_operator(Operator::RightParen)),
+            '{' => Ok(self.consume_operator(Operator::BraceOpen)),
+            '}' => Ok(self.consume_operator(Operator::BraceClose)),
+            '[' => Ok(self.consume_operator(Operator::LeftBracket)),
+            ']' => Ok(self.consume_operator(Operator::RightBracket)),
+            c => {
+                self.col += 1;
+                Err(TokenError::InvalidCharacter(c))
+            }
+        }
     }
 
     fn consume_operator(&mut self, operator: Operator) -> Option<TokenWithSpan> {
@@ -590,20 +597,34 @@ impl Iterator for Tokenizer<'_> {
     type Item = Result<TokenWithSpan, TokenError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.next_token() {
-            Ok(Some(token)) => Some(Ok(token)),
-            Ok(None) => None,
-            Err(err) => Some(Err(err)),
-        }
+        self.next_token().transpose()
     }
 }
 
-#[test]
-pub fn test_negative_numbers() {
-    let source = "-42 -3.14";
-    let tokenizer = Tokenizer::new(source);
-    let tokens: Vec<_> = tokenizer.collect::<Result<Vec<_>, _>>().unwrap();
+#[cfg(test)]
+mod test {
+    use super::*;
 
-    assert_eq!(tokens[0].token, Token::Number(-42.0));
-    assert_eq!(tokens[1].token, Token::Number(-3.14));
+    #[test]
+    fn test_negative_numbers() {
+        let source = "-42 -3.14";
+        let tokenizer = Tokenizer::new(source);
+        let tokens: Vec<_> = tokenizer.collect::<Result<Vec<_>, _>>().unwrap();
+
+        assert_eq!(tokens[0].token, Token::Number(-42.0));
+        assert_eq!(tokens[1].token, Token::Number(-3.14));
+    }
+
+    #[test]
+    fn test_newline_between_tokens() {
+        let source = "name =\nadd";
+        let tokenizer = Tokenizer::new(source);
+        let tokens: Vec<_> = tokenizer.collect::<Result<Vec<_>, _>>().unwrap();
+        assert_eq!(tokens[0].token, Token::Identifier("name".to_string()));
+        assert_eq!(tokens[0].span.start_line, 1);
+        assert_eq!(tokens[1].token, Token::Operator(Operator::Equal));
+        assert_eq!(tokens[1].span.start_line, 2);
+        assert_eq!(tokens[2].token, Token::Identifier("add".to_string()));
+        assert_eq!(tokens[2].span.start_line, 2);
+    }
 }
