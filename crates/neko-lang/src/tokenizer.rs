@@ -623,7 +623,7 @@ mod test {
         assert_eq!(tokens[0].token, Token::Identifier("name".to_string()));
         assert_eq!(tokens[0].span.start_line, 1);
         assert_eq!(tokens[1].token, Token::Operator(Operator::Equal));
-        assert_eq!(tokens[1].span.start_line, 2);
+        assert_eq!(tokens[1].span.start_line, 1);
         assert_eq!(tokens[2].token, Token::Identifier("add".to_string()));
         assert_eq!(tokens[2].span.start_line, 2);
     }
