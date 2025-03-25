@@ -319,6 +319,32 @@ impl Interpreter {
 
             Ok(Value::String(value.type_of().to_string()))
         });
+
+        env.register_native_fn("map", |interpreter, args| {
+            if args.is_empty() {
+                return Err(RuntimeError::FunctionCallError(
+                    "map accepts exactly two arguments".to_string(),
+                ));
+            }
+
+            let Value::List(list) = &args[0] else {
+                return Err(RuntimeError::TypeError(
+                    "First argument to map must be a list".to_string(),
+                ));
+            };
+
+            let Value::Function(transform) = &args[1] else {
+                return Err(RuntimeError::TypeError(
+                    "Second argument to map must be a function".to_string(),
+                ));
+            };
+
+            Ok(Value::List(
+                list.iter()
+                    .map(|item| interpreter.call_function(transform, vec![item.clone()]))
+                    .collect::<Result<Vec<Value>, RuntimeError>>()?,
+            ))
+        });
     }
 
     /// Helper to convert a Value to a string representation

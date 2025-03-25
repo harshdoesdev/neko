@@ -260,7 +260,14 @@ where
 
     fn parse_anonymous_function(&mut self) -> Result<AstNode, ParseError> {
         let params = self.parse_function_params()?;
-        let body = self.parse_block(vec![Keyword::End])?;
+        let body = match self.peek()? {
+            Some(&Token::Operator(Operator::Arrow)) => {
+                self.next_token()?;
+                AstNode::Block(vec![self.parse_return_statement()?])
+            }
+            Some(_) => self.parse_block(vec![Keyword::End])?,
+            None => return Err(ParseError::UnexpectedEof),
+        };
 
         self.expect(&Token::Keyword(Keyword::End))?;
 
@@ -334,7 +341,10 @@ where
             Some(Token::Operator(Operator::Equal)) => {
                 let equal_token = self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
                 if equal_token.span.start_line != ident_span.start_line {
-                    return Err(ParseError::UnexpectedToken { token: equal_token.token, span: equal_token.span });
+                    return Err(ParseError::UnexpectedToken {
+                        token: equal_token.token,
+                        span: equal_token.span,
+                    });
                 }
                 let next_token_span = match self.peek_with_span()? {
                     Some(TokenWithSpan { span, .. }) => *span,
