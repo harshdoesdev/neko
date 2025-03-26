@@ -1,15 +1,5 @@
-fn button_component(state)
-    return "<button>#{state}</button>"
-end
+cats = ["momo", "taro"]
 
-fn hx_render(component, state)
-    println(invoke(component, state))
+for message in map(cats, fn(cat) => "Hello, #{cat}!") 
+    println(message)
 end
-
-fn hx_update(component, new_state)
-    println(invoke(component, new_state))
-end
-
-# Example Usage
-hx_render(button_component, "Click me!")  # Prints: <button>Click me!</button>
-hx_update(button_component, "Clicked!")   # Prints: <button>Clicked!</button>

@@ -263,7 +263,10 @@ where
         let body = match self.peek()? {
             Some(&Token::Operator(Operator::Arrow)) => {
                 self.next_token()?;
-                AstNode::Block(vec![self.parse_return_statement()?])
+                return Ok(AstNode::AnonFunctionDef {
+                    params,
+                    body: Box::new(AstNode::Block(vec![self.parse_expression()?])),
+                });
             }
             Some(_) => self.parse_block(vec![Keyword::End])?,
             None => return Err(ParseError::UnexpectedEof),
@@ -474,7 +477,7 @@ where
                 }
                 None => return Err(ParseError::UnexpectedEof),
             };
-            self.expect(&Token::Operator(Operator::Arrow))?;
+            self.expect(&Token::Operator(Operator::Equal))?;
 
             let value = self.parse_expression()?;
             pairs.push((key, value));
