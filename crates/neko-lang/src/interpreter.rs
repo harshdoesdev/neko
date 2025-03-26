@@ -341,7 +341,13 @@ impl Interpreter {
 
             Ok(Value::List(
                 list.iter()
-                    .map(|item| interpreter.call_function(transform, vec![item.clone()]))
+                    .enumerate()
+                    .map(|(index, item)| {
+                        interpreter.call_function(
+                            transform,
+                            vec![Value::Number(index as f64), item.clone()],
+                        )
+                    })
                     .collect::<Result<Vec<Value>, RuntimeError>>()?,
             ))
         });

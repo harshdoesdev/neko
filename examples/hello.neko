@@ -1,5 +1,11 @@
+cat = {
+    "name" = "momo",
+}
+
+println(cat["name"])
+
 cats = ["momo", "taro"]
 
-for message in map(cats, fn(cat) => "Hello, #{cat}!") 
+for message in map(cats, fn(_, cat) => "Hello, #{cat}!") 
     println(message)
 end
