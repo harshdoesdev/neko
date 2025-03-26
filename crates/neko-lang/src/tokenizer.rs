@@ -150,6 +150,7 @@ pub enum TokenError {
 
 pub struct Tokenizer<'a> {
     input: Peekable<Chars<'a>>,
+    current_char: Option<char>,
     line: usize,
     col: usize,
 }
@@ -158,28 +159,34 @@ impl<'a> Tokenizer<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
             input: source.chars().peekable(),
+            current_char: None,
             line: 1,
             col: 0,
         }
+    }
+
+    fn consume_char(&mut self) -> Option<char> {
+        self.current_char = self.input.next();
+        self.current_char
     }
 
     pub fn next_token(&mut self) -> Result<Option<TokenWithSpan>, TokenError> {
         while let Some(ch) = self.input.peek() {
             match ch {
                 ' ' | '\t' => {
-                    self.input.next();
+                    self.consume_char();
                     self.col += 1;
                 }
                 '\n' => {
-                    self.input.next();
+                    self.consume_char();
                     self.line += 1;
                     self.col = 0;
                 }
                 '\r' => {
-                    self.input.next();
+                    self.consume_char();
                     self.col += 1;
                     if self.input.peek() == Some(&'\n') {
-                        self.input.next();
+                        self.consume_char();
                         self.col = 0;
                     }
                     self.line += 1;
@@ -207,29 +214,38 @@ impl<'a> Tokenizer<'a> {
                 }))
             }
             '-' => {
-                self.input.next(); // Consume the '-'
+                let was_alphanumeric = self
+                    .current_char
+                    .map(|c| c.is_alphanumeric())
+                    .unwrap_or(false);
+
+                self.consume_char();
                 self.col += 1;
-                if let Some(&next_ch) = self.input.peek() {
-                    if next_ch.is_ascii_digit() {
-                        let token = self.parse_number(true)?; // Has leading minus
-                        let end_line = self.line;
-                        let end_col = self.col;
-                        Ok(Some(TokenWithSpan {
-                            token,
-                            span: Span::new(start_line, start_col, end_line, end_col),
-                        }))
-                    } else {
-                        Ok(Some(TokenWithSpan {
-                            token: Token::Operator(Operator::Minus),
-                            span: Span::new(start_line, start_col, self.line, self.col),
-                        }))
-                    }
-                } else {
-                    Ok(Some(TokenWithSpan {
+
+                if was_alphanumeric {
+                    return Ok(Some(TokenWithSpan {
                         token: Token::Operator(Operator::Minus),
                         span: Span::new(start_line, start_col, self.line, self.col),
-                    }))
+                    }));
                 }
+
+                if self
+                    .input
+                    .peek()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
+                {
+                    let token = self.parse_number(true)?;
+                    return Ok(Some(TokenWithSpan {
+                        token,
+                        span: Span::new(start_line, start_col, self.line, self.col),
+                    }));
+                }
+
+                Ok(Some(TokenWithSpan {
+                    token: Token::Operator(Operator::Minus),
+                    span: Span::new(start_line, start_col, self.line, self.col),
+                }))
             }
             'a'..='z' | 'A'..='Z' | '_' => {
                 let token = self.parse_word_token();
@@ -267,12 +283,12 @@ impl<'a> Tokenizer<'a> {
             '/' => Ok(self.consume_operator(Operator::Slash)),
             '%' => Ok(self.consume_operator(Operator::Percent)),
             '=' => {
-                self.input.next();
+                self.consume_char();
                 self.col += 1;
                 let mut end_line = self.line;
                 let mut end_col = self.col;
                 if self.input.peek() == Some(&'=') {
-                    self.input.next();
+                    self.consume_char();
                     self.col += 1;
                     end_line = self.line;
                     end_col = self.col;
@@ -282,7 +298,7 @@ impl<'a> Tokenizer<'a> {
                     }));
                 }
                 if self.input.peek() == Some(&'>') {
-                    self.input.next();
+                    self.consume_char();
                     self.col += 1;
                     end_line = self.line;
                     end_col = self.col;
@@ -297,10 +313,10 @@ impl<'a> Tokenizer<'a> {
                 }))
             }
             '!' => {
-                self.input.next();
+                self.consume_char();
                 self.col += 1;
                 if self.input.peek() == Some(&'=') {
-                    self.input.next();
+                    self.consume_char();
                     self.col += 1;
                     return Ok(Some(TokenWithSpan {
                         token: Token::Operator(Operator::NotEqual),
@@ -310,12 +326,12 @@ impl<'a> Tokenizer<'a> {
                 Err(TokenError::InvalidOperator)
             }
             '>' => {
-                self.input.next();
+                self.consume_char();
                 self.col += 1;
                 let mut end_line = self.line;
                 let mut end_col = self.col;
                 if self.input.peek() == Some(&'=') {
-                    self.input.next();
+                    self.consume_char();
                     self.col += 1;
                     end_line = self.line;
                     end_col = self.col;
@@ -330,12 +346,12 @@ impl<'a> Tokenizer<'a> {
                 }))
             }
             '<' => {
-                self.input.next();
+                self.consume_char();
                 self.col += 1;
                 let mut end_line = self.line;
                 let mut end_col = self.col;
                 if self.input.peek() == Some(&'=') {
-                    self.input.next();
+                    self.consume_char();
                     self.col += 1;
                     end_line = self.line;
                     end_col = self.col;
@@ -366,7 +382,7 @@ impl<'a> Tokenizer<'a> {
     fn consume_operator(&mut self, operator: Operator) -> Option<TokenWithSpan> {
         let start_line = self.line;
         let start_col = self.col;
-        self.input.next();
+        self.consume_char();
         self.col += 1;
         let end_line = self.line;
         let end_col = self.col;
@@ -377,7 +393,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn parse_symbol_or_colon(&mut self) -> Result<Token, TokenError> {
-        self.input.next();
+        self.consume_char();
         self.col += 1;
         if let Some(&ch) = self.input.peek() {
             if ch.is_alphabetic() || ch == '_' {
@@ -385,7 +401,7 @@ impl<'a> Tokenizer<'a> {
                 while let Some(&ch) = self.input.peek() {
                     if ch.is_alphanumeric() || ch == '_' {
                         symbol.push(ch);
-                        self.input.next();
+                        self.consume_char();
                         self.col += 1;
                     } else {
                         break;
@@ -417,10 +433,10 @@ impl<'a> Tokenizer<'a> {
         while let Some(&ch) = self.input.peek() {
             if ch.is_ascii_digit() {
                 num_str.push(ch);
-                self.input.next();
+                self.consume_char();
                 self.col += 1;
             } else if ch == '.' && !has_dot {
-                self.input.next();
+                self.consume_char();
                 self.col += 1;
                 num_str.push('.');
                 has_dot = true;
@@ -447,7 +463,7 @@ impl<'a> Tokenizer<'a> {
         while let Some(&ch) = self.input.peek() {
             if ch.is_alphanumeric() || ch == '_' {
                 ident.push(ch);
-                self.input.next();
+                self.consume_char();
                 self.col += 1;
             } else {
                 break;
@@ -472,10 +488,10 @@ impl<'a> Tokenizer<'a> {
         let mut in_interpolation = false;
         let mut var_buffer = String::new();
 
-        self.input.next(); // Consume the opening quote
+        self.consume_char(); // Consume the opening quote
         self.col += 1;
 
-        while let Some(ch) = self.input.next() {
+        while let Some(ch) = self.consume_char() {
             self.col += 1;
             match ch {
                 '"' => {
@@ -494,7 +510,7 @@ impl<'a> Tokenizer<'a> {
                 '\\' => {
                     if in_interpolation {
                         var_buffer.push('\\');
-                    } else if let Some(escaped) = self.input.next() {
+                    } else if let Some(escaped) = self.consume_char() {
                         self.col += 1;
                         current_part.push(match escaped {
                             '"' => '"',
@@ -511,7 +527,7 @@ impl<'a> Tokenizer<'a> {
                     if in_interpolation {
                         var_buffer.push('#');
                     } else if self.input.peek() == Some(&'{') {
-                        self.input.next(); // Consume '{'
+                        self.consume_char(); // Consume '{'
                         self.col += 1;
                         parts.push(current_part);
                         current_part = String::new();
@@ -569,14 +585,14 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn skip_comment(&mut self) {
-        self.input.next();
+        self.consume_char();
         self.col += 1;
-        while let Some(ch) = self.input.next() {
+        while let Some(ch) = self.consume_char() {
             self.col += 1;
             match ch {
                 '\r' => {
                     if self.input.peek() == Some(&'\n') {
-                        self.input.next();
+                        self.consume_char();
                     }
                     self.line += 1;
                     self.col = 0;
