@@ -209,6 +209,9 @@ pub enum RuntimeError {
     #[error("Function call error: {0}")]
     FunctionCallError(String),
 
+    #[error("Cannot redefine function '{0}': already declared")]
+    FunctionAlreadyDeclared(String),
+
     #[error("Return value: {0:?}")]
     ReturnValue(Box<Value>),
 }
@@ -636,6 +639,12 @@ impl Interpreter {
                     body: body.clone(),
                     closure: Some(env.clone()),
                 };
+
+                {
+                    if env.borrow().get(name).is_some() {
+                        return Err(RuntimeError::FunctionAlreadyDeclared(name.clone()));
+                    }
+                }
 
                 env.borrow_mut()
                     .define(name, Value::Function(function.clone()));
