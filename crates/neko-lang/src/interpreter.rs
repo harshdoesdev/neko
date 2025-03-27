@@ -640,10 +640,8 @@ impl Interpreter {
                     closure: Some(env.clone()),
                 };
 
-                {
-                    if env.borrow().get(name).is_some() {
-                        return Err(RuntimeError::FunctionAlreadyDeclared(name.clone()));
-                    }
+                if env.borrow().get(name).is_some() {
+                    return Err(RuntimeError::FunctionAlreadyDeclared(name.clone()));
                 }
 
                 env.borrow_mut()
