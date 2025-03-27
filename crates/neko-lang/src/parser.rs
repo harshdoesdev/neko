@@ -5,7 +5,8 @@ use thiserror::Error;
 #[derive(Debug, PartialEq, Clone)]
 pub enum AstNode {
     Nil,
-    Number(f64),
+    Integer(i64),
+    Float(f64),
     Boolean(bool),
     StringLiteral(String),
     InterpolatedString {
@@ -536,9 +537,13 @@ where
                 ..
             }) => Ok(AstNode::Nil),
             Some(TokenWithSpan {
-                token: Token::Number(n),
+                token: Token::Integer(n),
                 ..
-            }) => Ok(AstNode::Number(n)),
+            }) => Ok(AstNode::Integer(n)),
+            Some(TokenWithSpan {
+                token: Token::Float(n),
+                ..
+            }) => Ok(AstNode::Float(n)),
             Some(TokenWithSpan {
                 token: Token::StringLiteral(s),
                 ..

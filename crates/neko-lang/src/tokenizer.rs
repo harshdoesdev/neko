@@ -29,7 +29,8 @@ pub struct TokenWithSpan {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
-    Number(f64),
+    Integer(i64),
+    Float(f64),
     Boolean(bool),
     StringLiteral(String),
     InterpolatedString {
@@ -452,8 +453,15 @@ impl<'a> Tokenizer<'a> {
             }
         }
 
-        match num_str.parse::<f64>() {
-            Ok(value) => Ok(Token::Number(value)),
+        if has_dot {
+            return match num_str.parse::<f64>() {
+                Ok(value) => Ok(Token::Float(value)),
+                Err(_) => Err(TokenError::InvalidNumber(num_str)),
+            };
+        }
+
+        match num_str.parse::<i64>() {
+            Ok(value) => Ok(Token::Integer(value)),
             Err(_) => Err(TokenError::InvalidNumber(num_str)),
         }
     }
@@ -622,13 +630,30 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_tokenize_numbers() {
+        let source = "1 -1 1.5 -1.5";
+        let tokenizer = Tokenizer::new(source);
+        let tokens: Vec<_> = tokenizer.collect::<Result<Vec<_>, _>>().unwrap();
+        let numbers = vec![
+            Token::Integer(1),
+            Token::Integer(-1),
+            Token::Float(1.5),
+            Token::Float(-1.5),
+        ];
+
+        for (idx, TokenWithSpan { token, .. }) in tokens.iter().enumerate() {
+            assert_eq!(Some(token), numbers.get(idx));
+        }
+    }
+
+    #[test]
     fn test_negative_numbers() {
         let source = "-42 -3.14";
         let tokenizer = Tokenizer::new(source);
         let tokens: Vec<_> = tokenizer.collect::<Result<Vec<_>, _>>().unwrap();
 
-        assert_eq!(tokens[0].token, Token::Number(-42.0));
-        assert_eq!(tokens[1].token, Token::Number(-3.14));
+        assert_eq!(tokens[0].token, Token::Integer(-42));
+        assert_eq!(tokens[1].token, Token::Float(-3.14));
     }
 
     #[test]

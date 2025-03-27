@@ -9,7 +9,8 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Nil,
-    Number(f64),
+    Integer(i64),
+    Float(f64),
     Boolean(bool),
     String(String),
     Symbol(String),
@@ -23,7 +24,8 @@ impl Value {
     pub fn type_of(&self) -> &'static str {
         match self {
             Value::Nil => "nil",
-            Value::Number(_) => "number",
+            Value::Integer(_) => "integer",
+            Value::Float(_) => "float",
             Value::Boolean(_) => "boolean",
             Value::String(_) => "string",
             Value::Symbol(_) => "symbol",
@@ -39,7 +41,8 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Nil => write!(f, "nil"),
-            Value::Number(n) => write!(f, "{}", n),
+            Value::Integer(n) => write!(f, "{}", n),
+            Value::Float(n) => write!(f, "{}", n),
             Value::Boolean(b) => write!(f, "{}", b),
             Value::String(s) => write!(f, "\"{}\"", s),
             Value::Symbol(s) => write!(f, ":{}", s),
@@ -260,7 +263,7 @@ impl Interpreter {
 
             // Determine the length based on its type
             match value {
-                Value::List(list) => Ok(Value::Number(list.len() as f64)),
+                Value::List(list) => Ok(Value::Integer(list.len() as i64)),
                 v => Err(RuntimeError::TypeError(format!(
                     "cannot determine length of type {:#?}",
                     v.type_of()
@@ -270,14 +273,12 @@ impl Interpreter {
 
         // Register range function
         env.register_native_fn("range", |_, args| match args.as_slice() {
-            [Value::Number(start), Value::Number(end)] => {
-                let range: Vec<Value> = (*start as i64..*end as i64)
-                    .map(|i| Value::Number(i as f64))
-                    .collect();
+            [Value::Integer(start), Value::Integer(end)] => {
+                let range: Vec<Value> = (*start..*end).map(Value::Integer).collect();
                 Ok(Value::List(range))
             }
-            [Value::Number(end)] => {
-                let range: Vec<Value> = (0..*end as i64).map(|i| Value::Number(i as f64)).collect();
+            [Value::Integer(end)] => {
+                let range: Vec<Value> = (0..*end).map(Value::Integer).collect();
                 Ok(Value::List(range))
             }
             _ => Err(RuntimeError::TypeError(
@@ -320,6 +321,18 @@ impl Interpreter {
             Ok(Value::String(value.type_of().to_string()))
         });
 
+        env.register_native_fn("to_str", |_, args| {
+            if args.is_empty() {
+                return Err(RuntimeError::FunctionCallError(
+                    "to_str requires exactly one argument".to_string(),
+                ));
+            }
+
+            let value = &args[0];
+
+            Ok(Value::String(value.to_string()))
+        });
+
         env.register_native_fn("map", |interpreter, args| {
             if args.is_empty() {
                 return Err(RuntimeError::FunctionCallError(
@@ -345,7 +358,7 @@ impl Interpreter {
                     .map(|(index, item)| {
                         interpreter.call_function(
                             transform,
-                            vec![Value::Number(index as f64), item.clone()],
+                            vec![Value::Integer(index as i64), item.clone()],
                         )
                     })
                     .collect::<Result<Vec<Value>, RuntimeError>>()?,
@@ -357,7 +370,8 @@ impl Interpreter {
     fn stringify_value(value: &Value) -> String {
         match value {
             Value::Nil => "nil".to_string(),
-            Value::Number(n) => n.to_string(),
+            Value::Integer(n) => n.to_string(),
+            Value::Float(n) => n.to_string(),
             Value::Boolean(b) => b.to_string(),
             Value::String(s) => s.clone(),
             Value::Symbol(s) => format!(":{}", s),
@@ -395,7 +409,7 @@ impl Interpreter {
             let index = self.evaluate(index_expr, env)?;
 
             current = match (&current, &index) {
-                (Value::List(list), Value::Number(n)) => {
+                (Value::List(list), Value::Integer(n)) => {
                     let i = *n as usize;
                     if i < list.len() {
                         list[i].clone()
@@ -443,7 +457,7 @@ impl Interpreter {
         if indexes.len() == 1 {
             let index = self.evaluate(&indexes[0], env)?;
             match (container, &index) {
-                (Value::List(list), Value::Number(n)) => {
+                (Value::List(list), Value::Integer(n)) => {
                     let i = *n as usize;
                     if i < list.len() {
                         list[i] = new_value;
@@ -473,7 +487,7 @@ impl Interpreter {
             match container {
                 Value::List(list) => {
                     let i = match index {
-                        Value::Number(n) => n as usize,
+                        Value::Integer(n) => n as usize,
                         _ => {
                             return Err(RuntimeError::TypeError(
                                 "List index must be a number".to_string(),
@@ -517,7 +531,8 @@ impl Interpreter {
     ) -> Result<Value, RuntimeError> {
         match node {
             AstNode::Nil => Ok(Value::Nil),
-            AstNode::Number(n) => Ok(Value::Number(*n)),
+            AstNode::Integer(i) => Ok(Value::Integer(*i)),
+            AstNode::Float(f) => Ok(Value::Float(*f)),
             AstNode::Boolean(b) => Ok(Value::Boolean(*b)),
             AstNode::StringLiteral(s) => Ok(Value::String(s.clone())),
 
@@ -807,7 +822,8 @@ impl Interpreter {
         match value {
             Value::Nil => false,
             Value::Boolean(b) => *b,
-            Value::Number(n) => *n != 0.0,
+            Value::Integer(n) => *n != 0,
+            Value::Float(n) => *n != 0.0,
             Value::String(s) => !s.is_empty(),
             Value::List(items) => !items.is_empty(),
             Value::Map(entries) => !entries.is_empty(),
@@ -823,24 +839,69 @@ impl Interpreter {
         right: &Value,
     ) -> Result<Value, RuntimeError> {
         match (op, left, right) {
-            // Numeric operations
-            (Operator::Plus, Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b)),
-            (Operator::Minus, Value::Number(a), Value::Number(b)) => Ok(Value::Number(a - b)),
-            (Operator::Asterisk, Value::Number(a), Value::Number(b)) => Ok(Value::Number(a * b)),
-            (Operator::Slash, Value::Number(a), Value::Number(b)) => {
+            // Numeric operations with integers
+            (Operator::Plus, Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a + b)),
+            (Operator::Minus, Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a - b)),
+            (Operator::Asterisk, Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a * b)),
+            (Operator::Slash, Value::Integer(a), Value::Integer(b)) => {
+                if *b == 0 {
+                    Err(RuntimeError::InvalidOperation(
+                        "Division by zero".to_string(),
+                    ))
+                } else {
+                    Ok(Value::Float(*a as f64 / *b as f64))
+                }
+            }
+            (Operator::Percent, Value::Integer(a), Value::Integer(b)) => {
+                if *b == 0 {
+                    Err(RuntimeError::InvalidOperation("Modulo by zero".to_string()))
+                } else {
+                    Ok(Value::Integer(a % b))
+                }
+            }
+
+            // Numeric operations with floats
+            (Operator::Plus, Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
+            (Operator::Minus, Value::Float(a), Value::Float(b)) => Ok(Value::Float(a - b)),
+            (Operator::Asterisk, Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
+            (Operator::Slash, Value::Float(a), Value::Float(b)) => {
                 if *b == 0.0 {
                     Err(RuntimeError::InvalidOperation(
                         "Division by zero".to_string(),
                     ))
                 } else {
-                    Ok(Value::Number(a / b))
+                    Ok(Value::Float(a / b))
                 }
             }
-            (Operator::Percent, Value::Number(a), Value::Number(b)) => {
+            (Operator::Percent, Value::Float(a), Value::Float(b)) => {
                 if *b == 0.0 {
                     Err(RuntimeError::InvalidOperation("Modulo by zero".to_string()))
                 } else {
-                    Ok(Value::Number(a % b))
+                    Ok(Value::Float(a % b))
+                }
+            }
+
+            // Mixed-type arithmetic (integer + float)
+            (Operator::Plus, Value::Integer(a), Value::Float(b))
+            | (Operator::Plus, Value::Float(b), Value::Integer(a)) => {
+                Ok(Value::Float(*a as f64 + b))
+            }
+            (Operator::Minus, Value::Integer(a), Value::Float(b))
+            | (Operator::Minus, Value::Float(b), Value::Integer(a)) => {
+                Ok(Value::Float(*a as f64 - b))
+            }
+            (Operator::Asterisk, Value::Integer(a), Value::Float(b))
+            | (Operator::Asterisk, Value::Float(b), Value::Integer(a)) => {
+                Ok(Value::Float(*a as f64 * b))
+            }
+            (Operator::Slash, Value::Integer(a), Value::Float(b))
+            | (Operator::Slash, Value::Float(b), Value::Integer(a)) => {
+                if *b == 0.0 {
+                    Err(RuntimeError::InvalidOperation(
+                        "Division by zero".to_string(),
+                    ))
+                } else {
+                    Ok(Value::Float(*a as f64 / b))
                 }
             }
 
@@ -854,12 +915,39 @@ impl Interpreter {
             (Operator::NotEqual, a, b) => Ok(Value::Boolean(a != b)),
 
             // Numeric comparisons
-            (Operator::Greater, Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a > b)),
-            (Operator::GreaterEqual, Value::Number(a), Value::Number(b)) => {
+            (Operator::Greater, Value::Integer(a), Value::Integer(b)) => Ok(Value::Boolean(a > b)),
+            (Operator::GreaterEqual, Value::Integer(a), Value::Integer(b)) => {
                 Ok(Value::Boolean(a >= b))
             }
-            (Operator::Less, Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a < b)),
-            (Operator::LessEqual, Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a <= b)),
+            (Operator::Less, Value::Integer(a), Value::Integer(b)) => Ok(Value::Boolean(a < b)),
+            (Operator::LessEqual, Value::Integer(a), Value::Integer(b)) => {
+                Ok(Value::Boolean(a <= b))
+            }
+
+            (Operator::Greater, Value::Float(a), Value::Float(b)) => Ok(Value::Boolean(a > b)),
+            (Operator::GreaterEqual, Value::Float(a), Value::Float(b)) => {
+                Ok(Value::Boolean(a >= b))
+            }
+            (Operator::Less, Value::Float(a), Value::Float(b)) => Ok(Value::Boolean(a < b)),
+            (Operator::LessEqual, Value::Float(a), Value::Float(b)) => Ok(Value::Boolean(a <= b)),
+
+            // Mixed-type comparisons (integer vs. float)
+            (Operator::Greater, Value::Integer(a), Value::Float(b))
+            | (Operator::Greater, Value::Float(b), Value::Integer(a)) => {
+                Ok(Value::Boolean((*a as f64) > *b))
+            }
+            (Operator::GreaterEqual, Value::Integer(a), Value::Float(b))
+            | (Operator::GreaterEqual, Value::Float(b), Value::Integer(a)) => {
+                Ok(Value::Boolean((*a as f64) >= *b))
+            }
+            (Operator::Less, Value::Integer(a), Value::Float(b))
+            | (Operator::Less, Value::Float(b), Value::Integer(a)) => {
+                Ok(Value::Boolean((*a as f64) < *b))
+            }
+            (Operator::LessEqual, Value::Integer(a), Value::Float(b))
+            | (Operator::LessEqual, Value::Float(b), Value::Integer(a)) => {
+                Ok(Value::Boolean((*a as f64) <= *b))
+            }
 
             // Logical operations
             (Operator::And, _, _) => {
