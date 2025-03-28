@@ -150,16 +150,13 @@ impl Environment {
 
     /// Get a variable value, looking up in parent environments if necessary
     pub fn get(&self, name: &str) -> Option<Value> {
-        match self.values.get(name) {
-            Some(value) => Some(value.clone()),
-            None => {
-                // Look in parent environment
-                match &self.parent {
-                    Some(parent) => parent.borrow().get(name),
-                    None => None,
-                }
-            }
-        }
+        self.get_local(name)
+            .or_else(|| self.parent.as_ref().and_then(|p| p.borrow().get(name)))
+    }
+
+    /// Get a variable value scoped to a block
+    pub fn get_local(&self, name: &str) -> Option<Value> {
+        self.values.get(name).cloned()
     }
 
     /// Assign a value to an existing variable
@@ -174,6 +171,11 @@ impl Environment {
                 None => Err(RuntimeError::UndefinedVariable(name.to_string())),
             }
         }
+    }
+
+    pub fn assign_local(&mut self, name: &str, value: Value) -> Result<(), RuntimeError> {
+        self.values.insert(name.to_string(), value);
+        Ok(())
     }
 
     /// Register a native function
@@ -632,6 +634,15 @@ impl Interpreter {
                 Ok(evaluated_value)
             }
 
+            AstNode::LocalVariableDef { name, value } => {
+                let evaluated_value = self.evaluate(value, env)?;
+
+                env.borrow_mut()
+                    .assign_local(name, evaluated_value.clone())?;
+
+                Ok(evaluated_value)
+            }
+
             AstNode::FunctionDef { name, params, body } => {
                 let function = Function {
                     name: name.clone(),
@@ -640,7 +651,7 @@ impl Interpreter {
                     closure: Some(env.clone()),
                 };
 
-                if env.borrow().get(name).is_some() {
+                if env.borrow().get_local(name).is_some() {
                     return Err(RuntimeError::FunctionAlreadyDeclared(name.clone()));
                 }
 

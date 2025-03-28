@@ -55,6 +55,10 @@ pub enum AstNode {
         name: String,
         value: Box<AstNode>,
     },
+    LocalVariableDef {
+        name: String,
+        value: Box<AstNode>,
+    },
     Return(Box<AstNode>),
     Subscript {
         name: String,
@@ -119,7 +123,57 @@ where
             Some(Token::Keyword(Keyword::Return)) => self.parse_return_statement(),
             Some(Token::Keyword(Keyword::If)) => self.parse_if_statement(),
             Some(Token::Keyword(Keyword::For)) => self.parse_for_statement(),
+            Some(Token::Keyword(Keyword::Local)) => self.parse_local_variable_definition(),
             Some(Token::Identifier(_) | Token::Symbol(_)) => self.parse_identifier_statement(),
+            Some(_) => {
+                let TokenWithSpan { token, span } =
+                    self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
+                Err(ParseError::UnexpectedToken { token, span })
+            }
+            None => Err(ParseError::UnexpectedEof),
+        }
+    }
+
+    fn parse_local_variable_definition(&mut self) -> Result<AstNode, ParseError> {
+        self.consume(&Token::Keyword(Keyword::Local))?;
+
+        let (name, ident_span) = match self.next_token()? {
+            Some(TokenWithSpan {
+                token: Token::Identifier(name),
+                span,
+            }) => (name, span),
+            Some(_) => {
+                let TokenWithSpan { token, span } =
+                    self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
+                return Err(ParseError::UnexpectedToken { token, span });
+            }
+            None => return Err(ParseError::UnexpectedEof),
+        };
+
+        match self.peek()? {
+            Some(Token::Operator(Operator::Equal)) => {
+                let equal_token = self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
+                if equal_token.span.start_line != ident_span.start_line {
+                    return Err(ParseError::UnexpectedToken {
+                        token: equal_token.token,
+                        span: equal_token.span,
+                    });
+                }
+                let next_token_span = match self.peek_with_span()? {
+                    Some(TokenWithSpan { span, .. }) => *span,
+                    None => return Err(ParseError::UnexpectedEof),
+                };
+                if next_token_span.start_line != ident_span.start_line {
+                    return Err(ParseError::AssignmentNewline {
+                        span: next_token_span,
+                    });
+                }
+                let value = self.parse_expression()?;
+                Ok(AstNode::LocalVariableDef {
+                    name,
+                    value: Box::new(value),
+                })
+            }
             Some(_) => {
                 let TokenWithSpan { token, span } =
                     self.next_token()?.ok_or(ParseError::UnexpectedEof)?;

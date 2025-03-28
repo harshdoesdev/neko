@@ -57,6 +57,7 @@ pub enum Keyword {
     Return,
     End,
     Nil,
+    Local,
 }
 
 impl Keyword {
@@ -74,6 +75,7 @@ impl Keyword {
             "do" => Some(Keyword::Do),
             "return" => Some(Keyword::Return),
             "end" => Some(Keyword::End),
+            "local" => Some(Keyword::Local),
             _ => None,
         }
     }
