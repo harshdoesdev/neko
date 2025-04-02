@@ -528,6 +528,40 @@ impl Interpreter {
         }
     }
 
+    fn get_property_value(
+        &self,
+        base_value: &Value,
+        property: &AstNode,
+        env: &Rc<RefCell<Environment>>,
+    ) -> Result<Value, RuntimeError> {
+        let property_value = match property {
+            AstNode::Identifier(name) => Value::String(name.clone()),
+            AstNode::PropertyAccess { base, property } => {
+                let base_value = self.get_property_value(base_value, base, env)?;
+                return self.get_property_value(&base_value, property, env);
+            }
+            AstNode::Subscript { name, indexes } => {
+                let container =
+                    self.get_property_value(base_value, &AstNode::Identifier(name.clone()), env)?;
+
+                return self.get_nested_value(&container, indexes, env);
+            }
+            _ => self.evaluate(property, env)?,
+        };
+
+        match (base_value, property_value) {
+            (Value::Map(map), Value::String(key)) => {
+                Ok(map.get(&MapKey::String(key)).cloned().unwrap_or(Value::Nil))
+            }
+            (Value::Map(map), Value::Symbol(key)) => {
+                Ok(map.get(&MapKey::Symbol(key)).cloned().unwrap_or(Value::Nil))
+            }
+            _ => Err(RuntimeError::TypeError(
+                "Property access requires a map and a string key".to_string(),
+            )),
+        }
+    }
+
     /// Evaluate an AST node in a specific environment
     fn evaluate(
         &self,
@@ -760,6 +794,11 @@ impl Interpreter {
                 }
 
                 Ok(result)
+            }
+
+            AstNode::PropertyAccess { base, property } => {
+                let base_value = self.evaluate(base, env)?;
+                self.get_property_value(&base_value, property, env)
             }
 
             AstNode::Subscript { name, indexes } => {
