@@ -69,6 +69,10 @@ pub enum AstNode {
         indexes: Vec<AstNode>,
         value: Box<AstNode>,
     },
+    PropertyAccess {
+        base: Box<AstNode>,
+        property: Box<AstNode>,
+    },
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -364,13 +368,19 @@ where
         };
 
         match self.peek()? {
+            Some(Token::Dot) => {
+                let base_node = if is_symbol {
+                    AstNode::Symbol(name)
+                } else {
+                    AstNode::Identifier(name)
+                };
+                self.parse_property_access(base_node)
+            }
             Some(Token::LeftBracket) => {
                 let indexes = self.parse_subscript()?;
-                match self.next_token()? {
-                    Some(TokenWithSpan {
-                        token: Token::Operator(Operator::Equal),
-                        ..
-                    }) => {
+                match self.peek()? {
+                    Some(Token::Operator(Operator::Equal)) => {
+                        self.next_token()?;
                         let value = self.parse_expression()?;
                         Ok(AstNode::SubscriptAssignment {
                             name,
@@ -378,21 +388,7 @@ where
                             value: Box::new(value),
                         })
                     }
-                    Some(TokenWithSpan {
-                        token: Token::Operator(Operator::DoubleEqual),
-                        ..
-                    }) => {
-                        let left = AstNode::Subscript { name, indexes };
-                        let value = self.parse_expression()?;
-                        Ok(AstNode::BinaryExpr {
-                            left: Box::new(left),
-                            op: Operator::DoubleEqual,
-                            right: Box::new(value),
-                        })
-                    }
-                    Some(TokenWithSpan { token, span }) => {
-                        Err(ParseError::UnexpectedToken { token, span })
-                    }
+                    Some(_) => Ok(AstNode::Subscript { name, indexes }),
                     None => Err(ParseError::UnexpectedEof),
                 }
             }
@@ -424,22 +420,29 @@ where
                 let args = self.parse_args()?;
                 Ok(AstNode::FunctionCall { name, args })
             }
-            Some(token)
-                if !matches!(
-                    token,
-                    Token::Keyword(Keyword::End) | Token::Keyword(Keyword::Else)
-                ) =>
-            {
-                let TokenWithSpan { token, span } =
-                    self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
-                Err(ParseError::UnexpectedToken { token, span })
-            }
             _ => Ok(if is_symbol {
                 AstNode::Symbol(name)
             } else {
                 AstNode::Identifier(name)
             }),
         }
+    }
+
+    fn parse_property_access(&mut self, base_node: AstNode) -> Result<AstNode, ParseError> {
+        self.consume(&Token::Dot)?;
+        let property = match self.peek()? {
+            Some(Token::Identifier(_)) => self.parse_identifier_statement()?,
+            Some(_) => {
+                let TokenWithSpan { token, span } =
+                    self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
+                return Err(ParseError::UnexpectedToken { token, span });
+            }
+            None => return Err(ParseError::UnexpectedEof),
+        };
+        Ok(AstNode::PropertyAccess {
+            base: Box::new(base_node),
+            property: Box::new(property),
+        })
     }
 
     fn parse_expression(&mut self) -> Result<AstNode, ParseError> {
@@ -639,6 +642,7 @@ where
                     let indexes = self.parse_subscript()?;
                     Ok(AstNode::Subscript { name: id, indexes })
                 }
+                Some(Token::Dot) => self.parse_property_access(AstNode::Identifier(id)),
                 _ => Ok(AstNode::Identifier(id)),
             },
             Some(TokenWithSpan {

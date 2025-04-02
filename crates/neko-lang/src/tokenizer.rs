@@ -50,6 +50,7 @@ pub enum Token {
     BraceOpen,
     BraceClose,
     Arrow,
+    Dot,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -259,6 +260,7 @@ impl<'a> Tokenizer<'a> {
                     span: Span::new(start_line, start_col, end_line, end_col),
                 }))
             }
+            '.' => Ok(self.consume_syntax_token(Token::Dot)),
             ':' => {
                 let token = self.parse_symbol_or_colon()?;
                 let end_line = self.line;
