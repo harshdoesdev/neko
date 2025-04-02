@@ -418,7 +418,15 @@ where
             Some(Token::LeftParen) => {
                 self.next_token()?;
                 let args = self.parse_args()?;
-                Ok(AstNode::FunctionCall { name, args })
+
+                let node = AstNode::FunctionCall { name, args };
+
+                if let Some(&Token::Dot) = self.peek()? {
+                    self.next_token()?;
+                    return self.parse_property_access(node);
+                }
+
+                Ok(node)
             }
             _ => Ok(if is_symbol {
                 AstNode::Symbol(name)
@@ -430,15 +438,7 @@ where
 
     fn parse_property_access(&mut self, base_node: AstNode) -> Result<AstNode, ParseError> {
         self.consume(&Token::Dot)?;
-        let property = match self.peek()? {
-            Some(Token::Identifier(_)) => self.parse_identifier_statement()?,
-            Some(_) => {
-                let TokenWithSpan { token, span } =
-                    self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
-                return Err(ParseError::UnexpectedToken { token, span });
-            }
-            None => return Err(ParseError::UnexpectedEof),
-        };
+        let property = self.parse_statement()?;
         Ok(AstNode::PropertyAccess {
             base: Box::new(base_node),
             property: Box::new(property),
