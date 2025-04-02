@@ -41,6 +41,15 @@ pub enum Token {
     Symbol(String),
     Keyword(Keyword),
     Operator(Operator),
+    Colon,
+    Comma,
+    LeftParen,
+    RightParen,
+    LeftBracket,
+    RightBracket,
+    BraceOpen,
+    BraceClose,
+    Arrow,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -98,15 +107,6 @@ pub enum Operator {
     And,
     Or,
     Not,
-    Colon,
-    Comma,
-    LeftParen,
-    RightParen,
-    LeftBracket,
-    RightBracket,
-    BraceOpen,
-    BraceClose,
-    Arrow,
 }
 
 impl Operator {
@@ -306,7 +306,7 @@ impl<'a> Tokenizer<'a> {
                     end_line = self.line;
                     end_col = self.col;
                     return Ok(Some(TokenWithSpan {
-                        token: Token::Operator(Operator::Arrow),
+                        token: Token::Arrow,
                         span: Span::new(start_line, start_col, end_line, end_col),
                     }));
                 }
@@ -368,18 +368,31 @@ impl<'a> Tokenizer<'a> {
                     span: Span::new(start_line, start_col, end_line, end_col),
                 }))
             }
-            ',' => Ok(self.consume_operator(Operator::Comma)),
-            '(' => Ok(self.consume_operator(Operator::LeftParen)),
-            ')' => Ok(self.consume_operator(Operator::RightParen)),
-            '{' => Ok(self.consume_operator(Operator::BraceOpen)),
-            '}' => Ok(self.consume_operator(Operator::BraceClose)),
-            '[' => Ok(self.consume_operator(Operator::LeftBracket)),
-            ']' => Ok(self.consume_operator(Operator::RightBracket)),
+            ',' => Ok(self.consume_syntax_token(Token::Comma)),
+            '(' => Ok(self.consume_syntax_token(Token::LeftParen)),
+            ')' => Ok(self.consume_syntax_token(Token::RightParen)),
+            '{' => Ok(self.consume_syntax_token(Token::BraceOpen)),
+            '}' => Ok(self.consume_syntax_token(Token::BraceClose)),
+            '[' => Ok(self.consume_syntax_token(Token::LeftBracket)),
+            ']' => Ok(self.consume_syntax_token(Token::RightBracket)),
             c => {
                 self.col += 1;
                 Err(TokenError::InvalidCharacter(c))
             }
         }
+    }
+
+    fn consume_syntax_token(&mut self, token: Token) -> Option<TokenWithSpan> {
+        let start_line = self.line;
+        let start_col = self.col;
+        self.consume_char();
+        self.col += 1;
+        let end_line = self.line;
+        let end_col = self.col;
+        Some(TokenWithSpan {
+            token,
+            span: Span::new(start_line, start_col, end_line, end_col),
+        })
     }
 
     fn consume_operator(&mut self, operator: Operator) -> Option<TokenWithSpan> {
@@ -416,10 +429,10 @@ impl<'a> Tokenizer<'a> {
                     Ok(Token::Symbol(symbol))
                 }
             } else {
-                Ok(Token::Operator(Operator::Colon))
+                Ok(Token::Colon)
             }
         } else {
-            Ok(Token::Operator(Operator::Colon))
+            Ok(Token::Colon)
         }
     }
 

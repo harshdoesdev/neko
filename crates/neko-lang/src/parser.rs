@@ -286,7 +286,7 @@ where
     fn parse_function_definition(&mut self) -> Result<AstNode, ParseError> {
         self.consume(&Token::Keyword(Keyword::Fn))?;
 
-        if matches!(self.peek()?, Some(Token::Operator(Operator::LeftParen))) {
+        if matches!(self.peek()?, Some(Token::LeftParen)) {
             return self.parse_anonymous_function();
         }
 
@@ -316,7 +316,7 @@ where
     fn parse_anonymous_function(&mut self) -> Result<AstNode, ParseError> {
         let params = self.parse_function_params()?;
         let body = match self.peek()? {
-            Some(&Token::Operator(Operator::Arrow)) => {
+            Some(&Token::Arrow) => {
                 self.next_token()?;
                 return Ok(AstNode::AnonFunctionDef {
                     params,
@@ -337,15 +337,15 @@ where
 
     fn parse_function_params(&mut self) -> Result<Vec<String>, ParseError> {
         let mut params = Vec::new();
-        if self.consume(&Token::Operator(Operator::LeftParen))? {
+        if self.consume(&Token::LeftParen)? {
             while let Some(Token::Identifier(param)) = self.peek()? {
                 params.push(param.clone());
                 self.next_token()?;
-                if !self.consume(&Token::Operator(Operator::Comma))? {
+                if !self.consume(&Token::Comma)? {
                     break;
                 }
             }
-            self.consume(&Token::Operator(Operator::RightParen))?;
+            self.consume(&Token::RightParen)?;
         }
         Ok(params)
     }
@@ -364,7 +364,7 @@ where
         };
 
         match self.peek()? {
-            Some(Token::Operator(Operator::LeftBracket)) => {
+            Some(Token::LeftBracket) => {
                 let indexes = self.parse_subscript()?;
                 match self.next_token()? {
                     Some(TokenWithSpan {
@@ -419,7 +419,7 @@ where
                     value: Box::new(value),
                 })
             }
-            Some(Token::Operator(Operator::LeftParen)) => {
+            Some(Token::LeftParen) => {
                 self.next_token()?;
                 let args = self.parse_args()?;
                 Ok(AstNode::FunctionCall { name, args })
@@ -480,7 +480,7 @@ where
 
     fn parse_list(&mut self) -> Result<AstNode, ParseError> {
         let mut elements = Vec::new();
-        if self.consume(&Token::Operator(Operator::RightBracket))? {
+        if self.consume(&Token::RightBracket)? {
             return Ok(AstNode::List(elements));
         }
 
@@ -488,13 +488,13 @@ where
             let item = self.parse_expression()?;
             elements.push(item);
             match self.peek()? {
-                Some(Token::Operator(Operator::Comma)) => {
+                Some(Token::Comma) => {
                     self.next_token()?;
-                    if self.consume(&Token::Operator(Operator::RightBracket))? {
+                    if self.consume(&Token::RightBracket)? {
                         break;
                     }
                 }
-                Some(Token::Operator(Operator::RightBracket)) => {
+                Some(Token::RightBracket) => {
                     self.next_token()?;
                     break;
                 }
@@ -510,10 +510,10 @@ where
     }
 
     fn parse_map(&mut self) -> Result<AstNode, ParseError> {
-        self.consume(&Token::Operator(Operator::BraceOpen))?;
+        self.consume(&Token::BraceOpen)?;
         let mut pairs = Vec::new();
 
-        if self.consume(&Token::Operator(Operator::BraceClose))? {
+        if self.consume(&Token::BraceClose)? {
             return Ok(AstNode::Map(pairs));
         }
 
@@ -538,13 +538,13 @@ where
             pairs.push((key, value));
 
             match self.peek()? {
-                Some(Token::Operator(Operator::Comma)) => {
+                Some(Token::Comma) => {
                     self.next_token()?;
-                    if self.consume(&Token::Operator(Operator::BraceClose))? {
+                    if self.consume(&Token::BraceClose)? {
                         break;
                     }
                 }
-                Some(Token::Operator(Operator::BraceClose)) => {
+                Some(Token::BraceClose) => {
                     self.next_token()?;
                     break;
                 }
@@ -562,11 +562,11 @@ where
 
     fn parse_subscript(&mut self) -> Result<Vec<AstNode>, ParseError> {
         let mut indexes = Vec::new();
-        while self.consume(&Token::Operator(Operator::LeftBracket))? {
+        while self.consume(&Token::LeftBracket)? {
             let index = self.parse_expression()?;
             indexes.push(index);
             match self.peek()? {
-                Some(Token::Operator(Operator::RightBracket)) => {
+                Some(Token::RightBracket) => {
                     self.next_token()?;
                 }
                 Some(_) => {
@@ -630,25 +630,25 @@ where
                 token: Token::Identifier(id),
                 ..
             }) => match self.peek()? {
-                Some(Token::Operator(Operator::LeftParen)) => {
+                Some(Token::LeftParen) => {
                     self.next_token()?;
                     let args = self.parse_args()?;
                     Ok(AstNode::FunctionCall { name: id, args })
                 }
-                Some(Token::Operator(Operator::LeftBracket)) => {
+                Some(Token::LeftBracket) => {
                     let indexes = self.parse_subscript()?;
                     Ok(AstNode::Subscript { name: id, indexes })
                 }
                 _ => Ok(AstNode::Identifier(id)),
             },
             Some(TokenWithSpan {
-                token: Token::Operator(Operator::LeftParen),
+                token: Token::LeftParen,
                 ..
             }) => {
                 let expr = self.parse_expression()?;
                 match self.next_token()? {
                     Some(TokenWithSpan {
-                        token: Token::Operator(Operator::RightParen),
+                        token: Token::RightParen,
                         ..
                     }) => Ok(expr),
                     Some(TokenWithSpan { token, span }) => {
@@ -658,11 +658,11 @@ where
                 }
             }
             Some(TokenWithSpan {
-                token: Token::Operator(Operator::LeftBracket),
+                token: Token::LeftBracket,
                 ..
             }) => self.parse_list(),
             Some(TokenWithSpan {
-                token: Token::Operator(Operator::BraceOpen),
+                token: Token::BraceOpen,
                 ..
             }) => self.parse_map(),
             Some(TokenWithSpan { token, span }) => Err(ParseError::UnexpectedToken { token, span }),
@@ -711,12 +711,12 @@ where
 
     fn parse_args(&mut self) -> Result<Vec<AstNode>, ParseError> {
         let mut args = Vec::new();
-        if self.consume(&Token::Operator(Operator::RightParen))? {
+        if self.consume(&Token::RightParen)? {
             return Ok(args);
         }
 
         loop {
-            if self.consume(&Token::Operator(Operator::RightParen))? {
+            if self.consume(&Token::RightParen)? {
                 return Ok(args);
             }
             let arg = match self.peek()? {
@@ -725,10 +725,10 @@ where
             };
             args.push(arg);
             match self.peek()? {
-                Some(Token::Operator(Operator::Comma)) => {
+                Some(Token::Comma) => {
                     self.next_token()?;
                 }
-                Some(Token::Operator(Operator::RightParen)) => {
+                Some(Token::RightParen) => {
                     self.next_token()?;
                     return Ok(args);
                 }
