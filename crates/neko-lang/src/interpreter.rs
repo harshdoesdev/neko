@@ -818,6 +818,14 @@ impl Interpreter {
                 self.get_property_value(&base_value, property, env)
             }
 
+            AstNode::PropertyAssignment {
+                base: _,
+                property: _,
+                value: _,
+            } => {
+                unimplemented!("Property assignment not yet implemented")
+            }
+
             AstNode::Subscript { name, indexes } => {
                 let container = match env.borrow().get(name) {
                     Some(val) => val,
