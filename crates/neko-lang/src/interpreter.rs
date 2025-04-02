@@ -546,6 +546,23 @@ impl Interpreter {
 
                 return self.get_nested_value(&container, indexes, env);
             }
+            AstNode::FunctionCall { name, args } => {
+                let mut evaluated_args = Vec::new();
+                for arg in args {
+                    evaluated_args.push(self.evaluate(arg, env)?);
+                }
+                let function_value =
+                    self.get_property_value(base_value, &AstNode::Identifier(name.clone()), env)?;
+
+                return match function_value {
+                    Value::Function(function) => self.call_function(&function, evaluated_args),
+                    Value::NativeFunction(native_fn) => (native_fn.function)(self, evaluated_args),
+                    _ => Err(RuntimeError::TypeError(format!(
+                        "{} is not a function",
+                        name
+                    ))),
+                };
+            }
             _ => self.evaluate(property, env)?,
         };
 
