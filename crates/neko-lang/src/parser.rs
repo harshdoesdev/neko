@@ -496,7 +496,7 @@ where
                 }
                 Some(Token::LeftBracket) => {
                     let indexes = self.parse_subscript()?;
-                    let property_node = if self.peek()? == Some(&Token::Operator(Operator::Equal)) {
+                    let subscript_node = if self.peek()? == Some(&Token::Operator(Operator::Equal)) {
                         self.next_token()?;
                         let value = self.parse_expression()?;
                         AstNode::SubscriptAssignment {
@@ -512,7 +512,7 @@ where
                     };
                     node = AstNode::PropertyAccess {
                         base: Box::new(node),
-                        property: Box::new(property_node),
+                        property: Box::new(subscript_node),
                     };
                     if self.peek()? == Some(&Token::Dot) {
                         self.next_token()?;
