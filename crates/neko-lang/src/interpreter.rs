@@ -570,9 +570,6 @@ impl Interpreter {
             (Value::Map(map), Value::String(key)) => {
                 Ok(map.get(&MapKey::String(key)).cloned().unwrap_or(Value::Nil))
             }
-            (Value::Map(map), Value::Symbol(key)) => {
-                Ok(map.get(&MapKey::Symbol(key)).cloned().unwrap_or(Value::Nil))
-            }
             _ => Err(RuntimeError::TypeError(
                 "Property access requires a map and a string key".to_string(),
             )),
