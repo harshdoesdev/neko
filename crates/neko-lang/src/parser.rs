@@ -373,13 +373,9 @@ where
         };
 
         match self.peek()? {
-            Some(Token::Dot) => {
-                let base_node = if is_symbol {
-                    AstNode::Symbol(name)
-                } else {
-                    AstNode::Identifier(name)
-                };
-                self.parse_property_access(base_node, ident_span)
+            Some(Token::Dot) if !is_symbol => {
+                let base_node = AstNode::Identifier(name);
+                self.parse_property_access_or_assignment(base_node)
             }
             Some(Token::LeftBracket) => {
                 let indexes = self.parse_subscript()?;
@@ -392,6 +388,9 @@ where
                             indexes,
                             value: Box::new(value),
                         })
+                    }
+                    Some(Token::Dot) => {
+                        self.parse_property_access_or_assignment(AstNode::Subscript { name, indexes })
                     }
                     Some(_) => Ok(AstNode::Subscript { name, indexes }),
                     None => Err(ParseError::UnexpectedEof),
@@ -428,7 +427,7 @@ where
 
                 if let Some(&Token::Dot) = self.peek()? {
                     self.next_token()?;
-                    return self.parse_property_access(node, ident_span);
+                    return self.parse_property_access_or_assignment(node);
                 }
 
                 Ok(node)
@@ -441,43 +440,94 @@ where
         }
     }
 
-    fn parse_property_access(
-        &mut self,
-        base_node: AstNode,
-        base_span: Span,
-    ) -> Result<AstNode, ParseError> {
+    fn parse_property_access_or_assignment(&mut self, base_node: AstNode) -> Result<AstNode, ParseError> {
         self.consume(&Token::Dot)?;
-        let property = self.parse_expression()?;
+        let mut node = base_node;
 
-        if let Some(Token::Operator(Operator::Equal)) = self.peek()? {
-            let equal_token = self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
-            if equal_token.span.start_line != base_span.start_line {
-                return Err(ParseError::UnexpectedToken {
-                    token: equal_token.token,
-                    span: equal_token.span,
-                });
-            }
-            let next_token_span = match self.peek_with_span()? {
-                Some(TokenWithSpan { span, .. }) => *span,
+        loop {
+            let (property_name, curr_span) = match self.next_token()? {
+                Some(TokenWithSpan {
+                    token: Token::Identifier(name),
+                    span,
+                }) => (name, span),
+                Some(TokenWithSpan { token, span }) => {
+                    return Err(ParseError::UnexpectedToken { token, span })
+                }
                 None => return Err(ParseError::UnexpectedEof),
             };
-            if next_token_span.start_line != base_span.start_line {
-                return Err(ParseError::AssignmentNewline {
-                    span: next_token_span,
-                });
-            }
-            let value = self.parse_expression()?;
-            return Ok(AstNode::PropertyAssignment {
-                base: Box::new(base_node),
-                property: Box::new(property),
-                value: Box::new(value),
-            });
-        }
 
-        Ok(AstNode::PropertyAccess {
-            base: Box::new(base_node),
-            property: Box::new(property),
-        })
+            match self.peek()? {
+                Some(Token::Dot) => {
+                    self.next_token()?;
+                    node = AstNode::PropertyAccess {
+                        base: Box::new(node),
+                        property: Box::new(AstNode::Identifier(property_name)),
+                    };
+                }
+                Some(Token::Operator(Operator::Equal)) => {
+                    let TokenWithSpan {
+                        span: equal_token_span,
+                        ..
+                    } = self.next_token()?.ok_or(ParseError::UnexpectedEof)?;
+                    let TokenWithSpan {
+                        span: next_token_span,
+                        ..
+                    } = self.peek_with_span()?.ok_or(ParseError::UnexpectedEof)?;
+
+                    if equal_token_span.start_line != curr_span.start_line {
+                        return Err(ParseError::UnexpectedToken {
+                            token: Token::Operator(Operator::Equal),
+                            span: equal_token_span,
+                        });
+                    }
+
+                    if next_token_span.start_line != equal_token_span.start_line {
+                        return Err(ParseError::AssignmentNewline {
+                            span: equal_token_span,
+                        });
+                    }
+
+                    let value: AstNode = self.parse_expression()?;
+                    return Ok(AstNode::PropertyAssignment {
+                        base: Box::new(node),
+                        property: Box::new(AstNode::Identifier(property_name)),
+                        value: Box::new(value),
+                    });
+                }
+                Some(Token::LeftBracket) => {
+                    let indexes = self.parse_subscript()?;
+                    let property_node = if self.peek()? == Some(&Token::Operator(Operator::Equal)) {
+                        self.next_token()?;
+                        let value = self.parse_expression()?;
+                        AstNode::SubscriptAssignment {
+                            name: property_name,
+                            indexes,
+                            value: Box::new(value),
+                        }
+                    } else {
+                        AstNode::Subscript {
+                            name: property_name,
+                            indexes,
+                        }
+                    };
+                    node = AstNode::PropertyAccess {
+                        base: Box::new(node),
+                        property: Box::new(property_node),
+                    };
+                    if self.peek()? == Some(&Token::Dot) {
+                        self.next_token()?;
+                        continue;
+                    }
+                    return Ok(node);
+                }
+                _ => {
+                    return Ok(AstNode::PropertyAccess {
+                        base: Box::new(node),
+                        property: Box::new(AstNode::Identifier(property_name)),
+                    })
+                }
+            }
+        }
     }
 
     fn parse_expression(&mut self) -> Result<AstNode, ParseError> {
@@ -666,7 +716,7 @@ where
             }
             Some(TokenWithSpan {
                 token: Token::Identifier(id),
-                span,
+                ..
             }) => match self.peek()? {
                 Some(Token::LeftParen) => {
                     self.next_token()?;
@@ -675,9 +725,14 @@ where
                 }
                 Some(Token::LeftBracket) => {
                     let indexes = self.parse_subscript()?;
+
+                    if let Some(Token::Dot) = self.peek()? {
+                        return self.parse_property_access_or_assignment(AstNode::Subscript { name: id, indexes });
+                    }
+
                     Ok(AstNode::Subscript { name: id, indexes })
                 }
-                Some(Token::Dot) => self.parse_property_access(AstNode::Identifier(id), span),
+                Some(Token::Dot) => self.parse_property_access_or_assignment(AstNode::Identifier(id)),
                 _ => Ok(AstNode::Identifier(id)),
             },
             Some(TokenWithSpan {
