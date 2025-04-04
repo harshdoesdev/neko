@@ -230,7 +230,7 @@ where
 
         let condition = self.parse_expression()?;
 
-        self.expect(&Token::Keyword(Keyword::Do))?;
+        self.expect(&Token::Keyword(Keyword::Then))?;
 
         let then_branch = self.parse_conditional_block()?;
 
@@ -242,7 +242,7 @@ where
                 Some(Token::Keyword(Keyword::Elsif)) => {
                     self.next_token()?;
                     let elsif_condition = self.parse_expression()?;
-                    self.expect(&Token::Keyword(Keyword::Do))?;
+                    self.expect(&Token::Keyword(Keyword::Then))?;
                     let elsif_block = self.parse_conditional_block()?;
                     elsif_branches.push((Box::new(elsif_condition), Box::new(elsif_block)));
                 }
@@ -389,9 +389,8 @@ where
                             value: Box::new(value),
                         })
                     }
-                    Some(Token::Dot) => {
-                        self.parse_property_access_or_assignment(AstNode::Subscript { name, indexes })
-                    }
+                    Some(Token::Dot) => self
+                        .parse_property_access_or_assignment(AstNode::Subscript { name, indexes }),
                     Some(_) => Ok(AstNode::Subscript { name, indexes }),
                     None => Err(ParseError::UnexpectedEof),
                 }
@@ -440,7 +439,10 @@ where
         }
     }
 
-    fn parse_property_access_or_assignment(&mut self, base_node: AstNode) -> Result<AstNode, ParseError> {
+    fn parse_property_access_or_assignment(
+        &mut self,
+        base_node: AstNode,
+    ) -> Result<AstNode, ParseError> {
         self.consume(&Token::Dot)?;
         let mut node = base_node;
 
@@ -496,7 +498,8 @@ where
                 }
                 Some(Token::LeftBracket) => {
                     let indexes = self.parse_subscript()?;
-                    let subscript_node = if self.peek()? == Some(&Token::Operator(Operator::Equal)) {
+                    let subscript_node = if self.peek()? == Some(&Token::Operator(Operator::Equal))
+                    {
                         self.next_token()?;
                         let value = self.parse_expression()?;
                         AstNode::SubscriptAssignment {
@@ -727,12 +730,17 @@ where
                     let indexes = self.parse_subscript()?;
 
                     if let Some(Token::Dot) = self.peek()? {
-                        return self.parse_property_access_or_assignment(AstNode::Subscript { name: id, indexes });
+                        return self.parse_property_access_or_assignment(AstNode::Subscript {
+                            name: id,
+                            indexes,
+                        });
                     }
 
                     Ok(AstNode::Subscript { name: id, indexes })
                 }
-                Some(Token::Dot) => self.parse_property_access_or_assignment(AstNode::Identifier(id)),
+                Some(Token::Dot) => {
+                    self.parse_property_access_or_assignment(AstNode::Identifier(id))
+                }
                 _ => Ok(AstNode::Identifier(id)),
             },
             Some(TokenWithSpan {
